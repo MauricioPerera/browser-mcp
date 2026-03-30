@@ -54,6 +54,10 @@
       this._started = false;
       this._requestCount = 0;
 
+      // Sampling
+      this._samplingEnabled = false;
+      this._samplingHandler = null; // custom handler or default modal
+
       // Auth
       this._authVerifier = null;
       this._authRequired = false;
@@ -131,6 +135,141 @@
       for (const [sid, s] of this._sessions) {
         if (now - s.created > SESSION_TTL) this._sessions.delete(sid);
       }
+    }
+
+    // ─── Sampling ───────────────────────────────────────────────────────────
+
+    /**
+     * Enable sampling — allows the server to request LLM completions from the client.
+     * By default shows a modal for human-in-the-loop responses.
+     *
+     * @param {function} [handler] - Custom handler: async ({messages, systemPrompt, maxTokens}) => string
+     *   If not provided, a modal dialog is shown to the user.
+     *
+     * @example
+     * // Default: shows modal for user to respond
+     * mcp.enableSampling();
+     *
+     * @example
+     * // Custom: auto-respond (e.g. forward to local LLM)
+     * mcp.enableSampling(async ({ messages, systemPrompt }) => {
+     *   const res = await myLocalLLM.complete(messages);
+     *   return res.text;
+     * });
+     */
+    enableSampling(handler) {
+      this._samplingEnabled = true;
+      this._samplingHandler = handler || null;
+      return this;
+    }
+
+    /**
+     * Request a completion from the client (sampling).
+     * Can be called from tool handlers to get LLM-generated responses.
+     *
+     * @param {object} params
+     * @param {Array<{role:string, content:{type:string, text:string}}>} params.messages
+     * @param {string} [params.systemPrompt]
+     * @param {number} [params.maxTokens=256]
+     * @returns {Promise<{role:string, content:{type:string, text:string}}>}
+     */
+    async createSamplingMessage(params) {
+      if (!this._samplingEnabled) throw new Error('Sampling not enabled. Call enableSampling() first.');
+
+      const { messages, systemPrompt, maxTokens } = params;
+
+      // Custom handler
+      if (this._samplingHandler) {
+        const text = await this._samplingHandler({ messages, systemPrompt, maxTokens });
+        return { role: 'assistant', content: { type: 'text', text } };
+      }
+
+      // Default: show modal dialog for human response
+      return this._showSamplingModal(messages, systemPrompt, maxTokens);
+    }
+
+    /**
+     * Show a modal for human-in-the-loop sampling.
+     * @private
+     */
+    _showSamplingModal(messages, systemPrompt, maxTokens) {
+      return new Promise((resolve) => {
+        const overlay = document.createElement('div');
+        overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:999999;display:flex;align-items:center;justify-content:center;font-family:system-ui,sans-serif;';
+
+        const modal = document.createElement('div');
+        modal.style.cssText = 'background:#1e293b;border:1px solid #475569;border-radius:12px;padding:24px;width:90%;max-width:550px;max-height:80vh;overflow-y:auto;color:#e2e8f0;';
+
+        const title = document.createElement('h3');
+        title.style.cssText = 'margin:0 0 12px;font-size:16px;color:#38bdf8;';
+        title.textContent = 'MCP Sampling Request';
+        modal.appendChild(title);
+
+        if (systemPrompt) {
+          const sys = document.createElement('div');
+          sys.style.cssText = 'background:#0f172a;padding:8px;border-radius:6px;font-size:12px;color:#94a3b8;margin-bottom:8px;';
+          sys.textContent = 'System: ' + systemPrompt;
+          modal.appendChild(sys);
+        }
+
+        if (messages?.length) {
+          const msgDiv = document.createElement('div');
+          msgDiv.style.cssText = 'margin-bottom:12px;';
+          for (const msg of messages) {
+            const m = document.createElement('div');
+            m.style.cssText = 'padding:6px 8px;margin:4px 0;border-radius:4px;font-size:13px;' +
+              (msg.role === 'user' ? 'background:#1e3a5f;' : 'background:#14532d;');
+            const label = document.createElement('strong');
+            label.textContent = msg.role + ': ';
+            label.style.color = msg.role === 'user' ? '#93c5fd' : '#86efac';
+            m.appendChild(label);
+            m.appendChild(document.createTextNode(msg.content?.text || msg.content || ''));
+            msgDiv.appendChild(m);
+          }
+          modal.appendChild(msgDiv);
+        }
+
+        const label = document.createElement('div');
+        label.style.cssText = 'font-size:12px;color:#94a3b8;margin-bottom:4px;';
+        label.textContent = 'Your response:';
+        modal.appendChild(label);
+
+        const textarea = document.createElement('textarea');
+        textarea.style.cssText = 'width:100%;min-height:80px;background:#0f172a;border:1px solid #475569;color:#e2e8f0;padding:8px;border-radius:6px;font-size:13px;resize:vertical;';
+        textarea.placeholder = 'Type your response...';
+        modal.appendChild(textarea);
+
+        const btnRow = document.createElement('div');
+        btnRow.style.cssText = 'display:flex;gap:8px;justify-content:flex-end;margin-top:12px;';
+
+        const cancelBtn = document.createElement('button');
+        cancelBtn.style.cssText = 'padding:6px 14px;background:#475569;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px;';
+        cancelBtn.textContent = 'Cancel';
+        cancelBtn.onclick = () => {
+          overlay.remove();
+          resolve({ role: 'assistant', content: { type: 'text', text: '' } });
+        };
+
+        const sendBtn = document.createElement('button');
+        sendBtn.style.cssText = 'padding:6px 14px;background:#2563eb;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px;';
+        sendBtn.textContent = 'Send';
+        sendBtn.onclick = () => {
+          const text = textarea.value.trim();
+          overlay.remove();
+          resolve({ role: 'assistant', content: { type: 'text', text } });
+        };
+
+        btnRow.appendChild(cancelBtn);
+        btnRow.appendChild(sendBtn);
+        modal.appendChild(btnRow);
+        overlay.appendChild(modal);
+        document.body.appendChild(overlay);
+
+        textarea.focus();
+        textarea.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) sendBtn.click();
+        });
+      });
     }
 
     // ─── Registration ──────────────────────────────────────────────────────
@@ -232,6 +371,7 @@
                 tools: this._tools.length > 0 ? {} : undefined,
                 resources: this._resources.length > 0 ? {} : undefined,
                 prompts: this._prompts.length > 0 ? {} : undefined,
+                ...(this._samplingEnabled ? { sampling: {} } : {}),
               },
               serverInfo: { name: this._name, version: this._version },
             };
@@ -284,6 +424,12 @@
               : raw;
             break;
           }
+          case 'sampling/createMessage': {
+            if (!this._samplingEnabled) throw new Error('Sampling not enabled');
+            result = await this.createSamplingMessage(body.params);
+            break;
+          }
+
           case 'ping':
             result = {};
             break;

@@ -235,6 +235,51 @@
       eq(promptGetR.result.messages[0].content.type, "text", "prompt returns message");
       assert(promptGetR.result.messages[0].content.text.includes("Agent"), "prompt includes arg");
 
+      // ── Sampling ────────────────────────────────────────────────
+      section("Sampling");
+
+      // Sampling disabled by default
+      const noSampR = await mcp.handleRequest({
+        jsonrpc: "2.0", id: 60, method: "sampling/createMessage",
+        params: { messages: [{ role: "user", content: { type: "text", text: "test" } }] }
+      });
+      assert(noSampR.error, "sampling fails when disabled");
+
+      // Enable with custom handler (auto-respond, no modal)
+      const sampMcp = new BrowserMCP({ name: "SampTest", widget: false });
+      sampMcp.enableSampling(async ({ messages, systemPrompt }) => {
+        return `Auto: ${messages[0]?.content?.text || messages[0]?.content || 'empty'}`;
+      });
+      sampMcp.tool("ask_llm", "Ask the LLM", { question: "string" }, async ({ question }) => {
+        const r = await sampMcp.createSamplingMessage({
+          messages: [{ role: "user", content: { type: "text", text: question } }],
+          systemPrompt: "Answer briefly",
+          maxTokens: 50,
+        });
+        return r.content.text;
+      }, { public: true });
+
+      const sampCallR = await sampMcp.handleRequest({
+        jsonrpc: "2.0", id: 61, method: "sampling/createMessage",
+        params: { messages: [{ role: "user", content: { type: "text", text: "Hello" } }] }
+      });
+      eq(sampCallR.result.role, "assistant", "sampling returns assistant role");
+      eq(sampCallR.result.content.text, "Auto: Hello", "sampling uses custom handler");
+
+      // Tool that uses sampling internally
+      const toolSampR = await sampMcp.handleRequest({
+        jsonrpc: "2.0", id: 62, method: "tools/call",
+        params: { name: "ask_llm", arguments: { question: "What is 2+2?" } }
+      });
+      eq(toolSampR.result.content[0].text, "Auto: What is 2+2?", "tool can use sampling internally");
+
+      // Capabilities include sampling
+      const sampInitR = await sampMcp.handleRequest({
+        jsonrpc: "2.0", id: 63, method: "initialize",
+        params: { protocolVersion: "2024-11-05", capabilities: {}, clientInfo: { name: "test" } }
+      });
+      assert(sampInitR.result.capabilities.sampling, "capabilities include sampling");
+
       // ── MCP Protocol: ping ───────────────────────────────────────
       section("MCP Protocol: ping");
 
@@ -447,6 +492,13 @@
 
       await bench("ping", () =>
         bMcp.handleRequest({ jsonrpc: "2.0", id: 1, method: "ping", params: {} })
+      );
+
+      // Sampling benchmark
+      const sBench = new BrowserMCP({ name: "SBench", widget: false });
+      sBench.enableSampling(async ({ messages }) => messages[0]?.content?.text || "ok");
+      await bench("sampling/createMessage", () =>
+        sBench.handleRequest({ jsonrpc: "2.0", id: 1, method: "sampling/createMessage", params: { messages: [{ role: "user", content: { type: "text", text: "test" } }] } })
       );
 
       // Auth benchmarks

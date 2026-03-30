@@ -169,6 +169,8 @@ mcp.<span class="fn">requireAuth</span>(<span class="keyword">async</span> (toke
         <tr><td><code>mcp.resource(uri, desc, mime?, handler)</code></td><td>Expose data. URI templates: <code>"data://{id}"</code></td></tr>
         <tr><td><code>mcp.prompt(name, desc, args, handler)</code></td><td>Prompt template</td></tr>
         <tr><td><code>mcp.requireAuth(verifier)</code></td><td><code>(token) => user | null</code></td></tr>
+        <tr><td><code>mcp.enableSampling(handler?)</code></td><td>Enable sampling. Optional custom handler, default shows modal.</td></tr>
+        <tr><td><code>mcp.createSamplingMessage(params)</code></td><td>Request completion from user/LLM. Callable from tool handlers.</td></tr>
       </table>
 
       <h3>Lifecycle</h3>
@@ -218,6 +220,7 @@ mcp.<span class="fn">requireAuth</span>(<span class="keyword">async</span> (toke
         <button onclick="testCall()">Call Tool</button>
         <button class="secondary" onclick="testLogin()">Login as Admin</button>
         <button class="secondary" onclick="testList()">List Tools</button>
+        <button class="secondary" onclick="testSampling()">Test Sampling</button>
       </div>
       <div class="result" id="result">Click a button to see results...</div>
     </div>
@@ -341,6 +344,9 @@ mcp.<span class="fn">requireAuth</span>(<span class="keyword">async</span> (toke
       ({ focus }) => `Summarize this page, focusing on ${focus || 'everything'}. Content: ${document.body.innerText.slice(0, 3000)}`
     );
 
+    // Enable sampling — shows modal for human-in-the-loop responses
+    mcp.enableSampling();
+
     mcp.start().then(() => {
       document.getElementById('status').innerHTML = `
         <div class="status-dot"></div>
@@ -380,6 +386,19 @@ mcp.<span class="fn">requireAuth</span>(<span class="keyword">async</span> (toke
       const data = JSON.parse(r.result.content[0].text);
       sessionToken = data.session;
       document.getElementById('result').textContent = `Logged in as ${data.user.name}!\nSession: ${sessionToken}\n\nNow try calling auth-required tools.`;
+    };
+
+    window.testSampling = async function() {
+      document.getElementById('result').textContent = 'Sampling modal will appear — type a response and click Send...';
+      const r = await mcp.handleRequest({
+        jsonrpc: '2.0', id: 1, method: 'sampling/createMessage',
+        params: {
+          messages: [{ role: 'user', content: { type: 'text', text: 'What is the capital of France?' } }],
+          systemPrompt: 'You are a helpful assistant. Answer concisely.',
+          maxTokens: 100,
+        }
+      });
+      document.getElementById('result').textContent = JSON.stringify(r, null, 2);
     };
 
     window.testList = async function() {
