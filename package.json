@@ -1,0 +1,15 @@
+{
+  "name": "browser-mcp",
+  "version": "0.1.0",
+  "description": "Turn any webpage into an MCP server. Zero deps. One script tag.",
+  "main": "browser-mcp.js",
+  "files": ["browser-mcp.js", "README.md", "LICENSE"],
+  "keywords": ["mcp", "model-context-protocol", "ai", "agent", "browser", "tools", "llm", "claude", "gemini"],
+  "license": "MIT",
+  "author": "Mauricio Perera (https://github.com/MauricioPerera)",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/MauricioPerera/browser-mcp"
+  },
+  "homepage": "https://browser-mcp.pages.dev"
+}

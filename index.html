@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>browser-mcp demo</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #0f172a; color: #e2e8f0; max-width: 800px; margin: 0 auto; padding: 40px 20px; }
+    h1 { font-size: 2rem; margin-bottom: 4px; }
+    h1 span { color: #4ade80; }
+    .subtitle { color: #94a3b8; margin-bottom: 24px; }
+    .card { background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+    .card h2 { font-size: 1rem; color: #38bdf8; margin-bottom: 8px; }
+    code { background: #0f172a; padding: 2px 6px; border-radius: 3px; font-size: 0.85em; }
+    pre { background: #0f172a; padding: 12px; border-radius: 6px; overflow-x: auto; font-size: 0.8rem; margin-top: 8px; }
+    .endpoint { font-family: monospace; color: #4ade80; font-size: 1.1rem; }
+    input, textarea { background: #0f172a; border: 1px solid #475569; color: #e2e8f0; padding: 8px; border-radius: 4px; width: 100%; font-family: monospace; font-size: 0.85rem; }
+    textarea { height: 100px; margin-top: 8px; }
+    button { padding: 8px 16px; background: #2563eb; color: white; border: none; border-radius: 4px; cursor: pointer; margin-top: 8px; }
+    button:hover { background: #1d4ed8; }
+    #result { margin-top: 8px; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 9999px; font-size: 0.75rem; background: #14532d; color: #86efac; }
+  </style>
+</head>
+<body>
+  <h1>browser-<span>mcp</span></h1>
+  <p class="subtitle">Turn any webpage into an MCP server. Zero deps. One script tag.</p>
+
+  <div class="card">
+    <h2>Status</h2>
+    <p>Server: <span class="badge" id="status">starting...</span></p>
+    <p style="margin-top:8px">Endpoint: <span class="endpoint" id="endpoint"></span></p>
+    <p style="margin-top:4px;font-size:0.8rem;color:#94a3b8">POST JSON-RPC to this URL to interact with the MCP server</p>
+  </div>
+
+  <div class="card">
+    <h2>Registered Tools</h2>
+    <div id="tools-list"></div>
+  </div>
+
+  <div class="card">
+    <h2>Test: Call a Tool</h2>
+    <input id="test-tool" placeholder="Tool name (e.g. greet)" value="greet">
+    <textarea id="test-args" placeholder='Arguments JSON (e.g. {"name": "World"})'></textarea>
+    <button onclick="testCall()">Call Tool</button>
+    <pre id="result">Results appear here...</pre>
+  </div>
+
+  <div class="card">
+    <h2>Test: Raw JSON-RPC</h2>
+    <textarea id="raw-rpc" style="height:80px">{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}</textarea>
+    <button onclick="testRaw()">Send</button>
+    <pre id="raw-result"></pre>
+  </div>
+
+  <div class="card">
+    <h2>How to use</h2>
+    <pre>&lt;script src="browser-mcp.js"&gt;&lt;/script&gt;
+&lt;script&gt;
+  const mcp = new BrowserMCP({ name: "My Site" });
+
+  mcp.tool("greet", "Say hello", { name: "string" },
+    ({ name }) =&gt; `Hello ${name}!`
+  );
+
+  mcp.tool("search", "Search page", { query: "string" },
+    ({ query }) =&gt; document.body.innerText.includes(query)
+      ? "Found!" : "Not found"
+  );
+
+  mcp.start();
+&lt;/script&gt;</pre>
+  </div>
+
+  <script src="browser-mcp.js"></script>
+  <script>
+    const mcp = new BrowserMCP({
+      name: "Demo MCP Server",
+      version: "0.1.0",
+      description: "A demo MCP server running in the browser",
+    });
+
+    // Example tools
+    mcp.tool("greet", "Say hello to someone", { name: "string" },
+      ({ name }) => `Hello ${name}! This response came from an MCP server running in your browser.`
+    );
+
+    mcp.tool("get_time", "Get current date and time", {},
+      () => new Date().toISOString()
+    );
+
+    mcp.tool("search_page", "Search for text in this page", { query: "string" },
+      ({ query }) => {
+        const text = document.body.innerText;
+        const found = text.toLowerCase().includes(query.toLowerCase());
+        return found ? `Found "${query}" in the page content` : `"${query}" not found in page`;
+      }
+    );
+
+    mcp.tool("calculate", "Do math", { expression: "string" },
+      ({ expression }) => {
+        try { return String(Function('"use strict"; return (' + expression + ')')());
+        } catch (e) { return `Error: ${e.message}`; }
+      }
+    );
+
+    mcp.tool("get_page_info", "Get information about the current page", {},
+      () => JSON.stringify({
+        title: document.title,
+        url: location.href,
+        elements: document.querySelectorAll('*').length,
+        text_length: document.body.innerText.length,
+      }, null, 2)
+    );
+
+    // Example resource
+    mcp.resource("page://content", "Full page text content", "text/plain",
+      () => document.body.innerText
+    );
+
+    // Example prompt
+    mcp.prompt("analyze", "Analyze this page", [{ name: "focus", description: "What to focus on" }],
+      ({ focus }) => ({
+        messages: [{ role: 'user', content: { type: 'text', text: `Analyze this page. Focus on: ${focus || 'everything'}. Page content: ${document.body.innerText.slice(0, 2000)}` } }]
+      })
+    );
+
+    mcp.start().then(() => {
+      document.getElementById('status').textContent = 'running';
+      document.getElementById('endpoint').textContent = location.origin + '/mcp';
+      document.getElementById('tools-list').innerHTML = mcp._tools.map(t =>
+        `<div style="padding:4px 0;border-bottom:1px solid #334155"><code>${t.name}</code> — ${t.description}</div>`
+      ).join('');
+      document.getElementById('test-args').value = '{"name": "World"}';
+    });
+
+    // Test functions
+    window.testCall = async function() {
+      const name = document.getElementById('test-tool').value;
+      const argsStr = document.getElementById('test-args').value;
+      let args = {};
+      try { args = JSON.parse(argsStr || '{}'); } catch {}
+
+      const request = { jsonrpc: '2.0', id: Date.now(), method: 'tools/call', params: { name, arguments: args } };
+      const response = await mcp.handleRequest(request);
+      document.getElementById('result').textContent = JSON.stringify(response, null, 2);
+    };
+
+    window.testRaw = async function() {
+      const body = document.getElementById('raw-rpc').value;
+      try {
+        const request = JSON.parse(body);
+        const response = await mcp.handleRequest(request);
+        document.getElementById('raw-result').textContent = JSON.stringify(response, null, 2);
+      } catch (e) {
+        document.getElementById('raw-result').textContent = 'Error: ' + e.message;
+      }
+    };
+  </script>
+</body>
+</html>
