@@ -49,6 +49,116 @@
       this._sessionId = null;
       this._started = false;
       this._requestCount = 0;
+
+      // Auth
+      this._authVerifier = null;  // (token) => user | null
+      this._authRequired = false;
+      this._sessions = new Map(); // sessionId → { user, token, created }
+    }
+
+    // ─── Auth API ───────────────────────────────────────────────────────────
+
+    /**
+     * Require authentication for all tools (or specific ones).
+     * The verifier receives a token string and returns the user object or null.
+     *
+     * @param {function} verifier - async (token) => { id, role, ... } | null
+     *
+     * @example
+     * mcp.requireAuth(async (token) => {
+     *   const res = await fetch("/api/verify", { headers: { Authorization: `Bearer ${token}` } });
+     *   return res.ok ? await res.json() : null;
+     * });
+     *
+     * @example
+     * // Simple static tokens
+     * const TOKENS = { "abc123": { id: "admin", role: "admin" }, "xyz789": { id: "editor", role: "editor" } };
+     * mcp.requireAuth((token) => TOKENS[token] || null);
+     */
+    requireAuth(verifier) {
+      this._authVerifier = verifier;
+      this._authRequired = true;
+      return this;
+    }
+
+    /**
+     * Built-in auth tool: agents call this to authenticate before using protected tools.
+     * Automatically registered when requireAuth() is called.
+     * Returns a session token the agent includes in subsequent calls.
+     */
+    _registerAuthTool() {
+      // Only register once
+      if (this._toolHandlers.has('auth_login')) return;
+
+      this._tools.push({
+        name: 'auth_login',
+        description: 'Authenticate to access protected tools. Returns a session token to include in _auth_token argument of other tools.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            token: { type: 'string', description: 'API key, JWT, or auth token' },
+          },
+          required: ['token'],
+        },
+      });
+
+      this._toolHandlers.set('auth_login', async ({ token }) => {
+        if (!this._authVerifier) return { error: 'Auth not configured' };
+        const user = await this._authVerifier(token);
+        if (!user) return { error: 'Invalid token' };
+        const sessionId = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2);
+        this._sessions.set(sessionId, { user, token, created: Date.now() });
+        return { session: sessionId, user: { id: user.id, role: user.role, name: user.name }, message: 'Authenticated. Include _auth_token in tool arguments.' };
+      });
+
+      // Also register whoami
+      this._tools.push({
+        name: 'auth_whoami',
+        description: 'Check current auth status',
+        inputSchema: {
+          type: 'object',
+          properties: { _auth_token: { type: 'string', description: 'Session token from auth_login' } },
+          required: ['_auth_token'],
+        },
+      });
+
+      this._toolHandlers.set('auth_whoami', ({ _auth_token }) => {
+        const session = this._sessions.get(_auth_token);
+        if (!session) return { authenticated: false };
+        return { authenticated: true, user: session.user };
+      });
+    }
+
+    /**
+     * Verify auth for a tool call. Returns user or throws.
+     * @private
+     */
+    async _verifyToolAuth(toolName, args) {
+      // auth_login and auth_whoami are always public
+      if (toolName === 'auth_login' || toolName === 'auth_whoami') return null;
+
+      // If no auth required, skip
+      if (!this._authRequired) return null;
+
+      // Check tool-specific auth config
+      const toolDef = this._tools.find(t => t.name === toolName);
+      if (toolDef && toolDef._public) return null; // explicitly public tool
+
+      // Check session token
+      const sessionToken = args?._auth_token;
+      if (!sessionToken) throw new Error('Authentication required. Call auth_login first to get a session token, then include _auth_token in your arguments.');
+
+      const session = this._sessions.get(sessionToken);
+      if (!session) throw new Error('Invalid or expired session. Call auth_login again.');
+
+      // Check role if tool has role requirement
+      if (toolDef && toolDef._roles && toolDef._roles.length > 0) {
+        if (!toolDef._roles.includes(session.user.role)) {
+          throw new Error(`Insufficient permissions. Required role: ${toolDef._roles.join(' or ')}. Your role: ${session.user.role}`);
+        }
+      }
+
+      return session.user;
     }
 
     // ─── Registration API ──────────────────────────────────────────────────
@@ -58,12 +168,29 @@
      * @param {string} name
      * @param {string} description
      * @param {object} inputSchema - { fieldName: "type" } or JSON Schema object
-     * @param {function} handler - (args) => result
+     * @param {function} handler - (args, user?) => result
+     * @param {object} [opts] - { public: true, roles: ["admin"] }
+     *
+     * @example
+     * // Public tool (no auth needed even if requireAuth is set)
+     * mcp.tool("ping", "Health check", {}, () => "pong", { public: true });
+     *
+     * // Admin-only tool
+     * mcp.tool("delete_user", "Delete a user", { id: "string" },
+     *   ({ id }, user) => deleteUser(id, user),
+     *   { roles: ["admin"] }
+     * );
      */
-    tool(name, description, inputSchema, handler) {
-      // Normalize simple schema { field: "type" } to JSON Schema
+    tool(name, description, inputSchema, handler, opts) {
       const schema = this._normalizeSchema(inputSchema);
-      this._tools.push({ name, description, inputSchema: schema });
+      // Add _auth_token to schema if auth is required and tool is not public
+      if (this._authRequired && !opts?.public) {
+        schema.properties._auth_token = { type: 'string', description: 'Session token from auth_login' };
+      }
+      const toolDef = { name, description, inputSchema: schema };
+      if (opts?.public) toolDef._public = true;
+      if (opts?.roles) toolDef._roles = opts.roles;
+      this._tools.push(toolDef);
       this._toolHandlers.set(name, handler);
       return this;
     }
@@ -103,6 +230,9 @@
       if (this._started) return;
       this._started = true;
       this._sessionId = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36);
+
+      // Register auth tools if auth is required
+      if (this._authRequired) this._registerAuthTool();
 
       // Register Service Worker for Streamable HTTP transport
       await this._registerServiceWorker();
@@ -155,7 +285,12 @@
             const { name, arguments: args } = body.params;
             const handler = this._toolHandlers.get(name);
             if (!handler) throw new Error(`Tool not found: ${name}`);
-            const raw = await handler(args || {});
+            // Auth check — returns user or throws
+            const user = await this._verifyToolAuth(name, args);
+            // Pass (args, user) to handler — user is null if no auth
+            const cleanArgs = { ...(args || {}) };
+            delete cleanArgs._auth_token; // Don't leak token to handler
+            const raw = await handler(cleanArgs, user);
             result = this._formatToolResult(raw);
             break;
           }

@@ -86,8 +86,17 @@
       ({ name }) => `Hello ${name}! This response came from an MCP server running in your browser.`
     );
 
+    // Auth: simple token-based
+    const USERS = {
+      "admin-key-123": { id: "admin", role: "admin", name: "Admin" },
+      "editor-key-456": { id: "editor", role: "editor", name: "Editor" },
+    };
+    mcp.requireAuth((token) => USERS[token] || null);
+
+    // Public tool (no auth needed)
     mcp.tool("get_time", "Get current date and time", {},
-      () => new Date().toISOString()
+      () => new Date().toISOString(),
+      { public: true }
     );
 
     mcp.tool("search_page", "Search for text in this page", { query: "string" },
@@ -105,8 +114,14 @@
       }
     );
 
+    // Admin-only tool
+    mcp.tool("admin_stats", "Get server stats (admin only)", {},
+      (_, user) => JSON.stringify({ user: user.name, role: user.role, tools: mcp.listTools().length, uptime: Date.now() }),
+      { roles: ["admin"] }
+    );
+
     mcp.tool("get_page_info", "Get information about the current page", {},
-      () => JSON.stringify({
+      (_, user) => JSON.stringify({
         title: document.title,
         url: location.href,
         elements: document.querySelectorAll('*').length,
