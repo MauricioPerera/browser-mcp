@@ -209,6 +209,11 @@ mcp.<span class="fn">requireAuth</span>(<span class="keyword">async</span> (toke
             <option value="calculate">calculate (public)</option>
             <option value="get_page_info">get_page_info (auth required)</option>
             <option value="admin_stats">admin_stats (admin only)</option>
+            <option value="debug_health">debug_health (debug plugin)</option>
+            <option value="debug_errors">debug_errors (debug plugin)</option>
+            <option value="debug_network">debug_network (debug plugin)</option>
+            <option value="debug_performance">debug_performance (debug plugin)</option>
+            <option value="debug_dom">debug_dom (debug plugin)</option>
           </select>
         </div>
         <div>
@@ -269,6 +274,7 @@ mcp.<span class="fn">requireAuth</span>(<span class="keyword">async</span> (toke
 
   <!-- MCP Server -->
   <script src="browser-mcp.js"></script>
+  <script src="plugins/debug.js"></script>
   <script>
     const USERS = {
       "admin-key-123": { id: "admin", role: "admin", name: "Admin" },
@@ -347,6 +353,9 @@ mcp.<span class="fn">requireAuth</span>(<span class="keyword">async</span> (toke
     // Enable sampling — shows modal for human-in-the-loop responses
     mcp.enableSampling();
 
+    // Register debug tools (12 tools + 1 resource)
+    BrowserMCPDebug.register(mcp);
+
     mcp.start().then(() => {
       document.getElementById('status').innerHTML = `
         <div class="status-dot"></div>
@@ -365,6 +374,11 @@ mcp.<span class="fn">requireAuth</span>(<span class="keyword">async</span> (toke
       calculate: '{"expression": "42 * 10 + 7"}',
       get_page_info: '{}',
       admin_stats: '{}',
+      debug_health: '{}',
+      debug_errors: '{"limit": 5}',
+      debug_network: '{"limit": 5}',
+      debug_performance: '{}',
+      debug_dom: '{"selector": "h1"}',
     };
 
     window.fillArgs = function() {
