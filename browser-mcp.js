@@ -91,8 +91,9 @@
         description: 'Check current auth status',
         inputSchema: { type: 'object', properties: { _auth_token: { type: 'string' } }, required: ['_auth_token'] },
       });
-      this._toolHandlers.set('auth_whoami', ({ _auth_token }) => {
-        const s = this._sessions.get(_auth_token);
+      // whoami needs _auth_token but tool dispatch strips it — use _rawArgs flag
+      this._toolHandlers.set('auth_whoami', (_, __, rawArgs) => {
+        const s = this._sessions.get(rawArgs?._auth_token);
         if (!s || Date.now() - s.created > SESSION_TTL) return { authenticated: false };
         return { authenticated: true, user: s.user };
       });
@@ -244,7 +245,7 @@
             const user = await this._verifyToolAuth(name, args);
             const clean = { ...(args || {}) };
             delete clean._auth_token;
-            const raw = await handler(clean, user);
+            const raw = await handler(clean, user, args);
             result = this._formatToolResult(raw);
             break;
           }

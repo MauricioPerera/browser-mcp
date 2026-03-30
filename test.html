@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>browser-mcp — Test Suite + Benchmark</title>
+  <style>
+    body { font-family: monospace; background: #0a0a0a; color: #e2e8f0; padding: 20px; max-width: 900px; margin: 0 auto; }
+    h1 { font-size: 1.2rem; margin-bottom: 4px; }
+    h1 span { color: #4ade80; }
+    .pass { color: #4ade80; }
+    .fail { color: #ef4444; }
+    .info { color: #93c5fd; }
+    .warn { color: #fbbf24; }
+    #output { white-space: pre-wrap; line-height: 1.6; }
+    .summary { margin-top: 16px; padding: 12px; border: 1px solid #333; border-radius: 4px; font-size: 1.1rem; }
+    .bench-table { margin-top: 12px; border-collapse: collapse; width: 100%; }
+    .bench-table th, .bench-table td { padding: 6px 10px; border: 1px solid #334155; text-align: left; font-size: 0.85rem; }
+    .bench-table th { background: #1e293b; color: #94a3b8; }
+    .bench-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  </style>
+</head>
+<body>
+  <h1>browser-<span>mcp</span> test suite + benchmark</h1>
+  <div id="output"></div>
+  <div id="bench-output"></div>
+
+  <script src="browser-mcp.js"></script>
+  <script>
+    const out = document.getElementById('output');
+    let passed = 0, failed = 0;
+
+    function log(msg, cls = "") {
+      const span = document.createElement("span");
+      span.className = cls;
+      span.textContent = msg + "\n";
+      out.appendChild(span);
+    }
+
+    function assert(cond, msg) {
+      if (cond) { passed++; log(`  PASS  ${msg}`, "pass"); }
+      else { failed++; log(`  FAIL  ${msg}`, "fail"); }
+    }
+
+    function eq(a, b, msg) { assert(a === b, `${msg} (got ${JSON.stringify(a)}, expected ${JSON.stringify(b)})`); }
+
+    function section(name) { log(`\n--- ${name} ---`, "info"); }
+
+    // ─── Benchmark helpers ──────────────────────────────────────────────
+    const benchResults = [];
+
+    async function bench(name, fn, iterations = 100) {
+      // Warmup
+      for (let i = 0; i < 5; i++) await fn();
+
+      const times = [];
+      for (let i = 0; i < iterations; i++) {
+        const t0 = performance.now();
+        await fn();
+        times.push(performance.now() - t0);
+      }
+
+      times.sort((a, b) => a - b);
+      const min = times[0];
+      const max = times[times.length - 1];
+      const median = times[Math.floor(times.length / 2)];
+      const avg = times.reduce((a, b) => a + b, 0) / times.length;
+      const p95 = times[Math.floor(times.length * 0.95)];
+      const opsPerSec = Math.round(1000 / avg);
+
+      benchResults.push({ name, iterations, min, max, median, avg, p95, opsPerSec });
+      log(`  BENCH ${name}: avg=${avg.toFixed(3)}ms  median=${median.toFixed(3)}ms  p95=${p95.toFixed(3)}ms  (${opsPerSec} ops/s)`, "warn");
+    }
+
+    // ─── Tests ──────────────────────────────────────────────────────────
+
+    async function runTests() {
+      log("browser-mcp test suite", "info");
+      log(`Version: 0.3.0 | Date: ${new Date().toISOString()}`, "info");
+
+      // ── Constructor ──────────────────────────────────────────────
+      section("Constructor");
+
+      const m1 = new BrowserMCP({ name: "Test", version: "1.0", description: "Desc" });
+      eq(m1._name, "Test", "name set");
+      eq(m1._version, "1.0", "version set");
+      eq(m1._started, false, "not started");
+      eq(m1._tools.length, 0, "no tools initially");
+
+      const m2 = new BrowserMCP({});
+      eq(m2._name, "BrowserMCP", "default name");
+      eq(m2._version, "1.0.0", "default version");
+
+      // ── Tool Registration ────────────────────────────────────────
+      section("Tool Registration");
+
+      const mcp = new BrowserMCP({ name: "TestMCP", widget: false });
+
+      mcp.tool("add", "Add two numbers", { a: "number", b: "number" },
+        ({ a, b }) => String(a + b)
+      );
+      eq(mcp._tools.length, 1, "tool registered");
+      eq(mcp._tools[0].name, "add", "tool name correct");
+      assert(mcp._tools[0].inputSchema.properties.a, "schema has property a");
+      assert(mcp._tools[0].inputSchema.properties.b, "schema has property b");
+
+      mcp.tool("noop", "Do nothing", {}, () => "ok");
+      eq(mcp._tools.length, 2, "second tool registered");
+
+      // Full JSON Schema
+      mcp.tool("full", "Full schema", {
+        type: "object",
+        properties: { name: { type: "string", description: "Name" } },
+        required: ["name"],
+      }, ({ name }) => name);
+      eq(mcp._tools[2].inputSchema.required[0], "name", "full schema required");
+
+      // ── Resource Registration ────────────────────────────────────
+      section("Resource Registration");
+
+      mcp.resource("test://data", "Test data", "application/json",
+        () => JSON.stringify({ hello: "world" })
+      );
+      eq(mcp._resources.length, 1, "resource registered");
+      eq(mcp._resources[0].uri, "test://data", "resource URI");
+
+      mcp.resource("item://{id}", "Item by ID", "text/plain",
+        ({ id }) => `Item ${id}`
+      );
+      eq(mcp._resources.length, 2, "template resource registered");
+      assert(mcp._resources[1].uriTemplate, "has uriTemplate");
+
+      // ── Prompt Registration ──────────────────────────────────────
+      section("Prompt Registration");
+
+      mcp.prompt("greet", "Greeting prompt", [{ name: "name", required: true }],
+        ({ name }) => `Hello ${name}!`
+      );
+      eq(mcp._prompts.length, 1, "prompt registered");
+      eq(mcp._prompts[0].arguments[0].name, "name", "prompt arg name");
+
+      // ── MCP Protocol: initialize ─────────────────────────────────
+      section("MCP Protocol: initialize");
+
+      const initR = await mcp.handleRequest({
+        jsonrpc: "2.0", id: 1, method: "initialize",
+        params: { protocolVersion: "2024-11-05", capabilities: {}, clientInfo: { name: "test" } }
+      });
+      eq(initR.jsonrpc, "2.0", "jsonrpc version");
+      eq(initR.id, 1, "response id matches");
+      eq(initR.result.protocolVersion, "2024-11-05", "protocol version");
+      eq(initR.result.serverInfo.name, "TestMCP", "server name");
+      assert(initR.result.capabilities.tools, "has tools capability");
+      assert(initR.result.capabilities.resources, "has resources capability");
+      assert(initR.result.capabilities.prompts, "has prompts capability");
+
+      // ── MCP Protocol: tools/list ─────────────────────────────────
+      section("MCP Protocol: tools/list");
+
+      const listR = await mcp.handleRequest({ jsonrpc: "2.0", id: 2, method: "tools/list", params: {} });
+      eq(listR.result.tools.length, 3, "3 tools listed");
+      eq(listR.result.tools[0].name, "add", "first tool is add");
+      assert(!listR.result.tools[0]._public, "internal fields stripped from list");
+
+      // ── MCP Protocol: tools/call ─────────────────────────────────
+      section("MCP Protocol: tools/call");
+
+      const callR = await mcp.handleRequest({
+        jsonrpc: "2.0", id: 3, method: "tools/call",
+        params: { name: "add", arguments: { a: 3, b: 7 } }
+      });
+      eq(callR.result.content[0].text, "10", "add(3,7) = 10");
+      eq(callR.result.content[0].type, "text", "content type is text");
+
+      const noopR = await mcp.handleRequest({
+        jsonrpc: "2.0", id: 4, method: "tools/call",
+        params: { name: "noop", arguments: {} }
+      });
+      eq(noopR.result.content[0].text, "ok", "noop returns ok");
+
+      // Tool not found
+      const notFoundR = await mcp.handleRequest({
+        jsonrpc: "2.0", id: 5, method: "tools/call",
+        params: { name: "nonexistent", arguments: {} }
+      });
+      assert(notFoundR.error, "unknown tool returns error");
+      assert(notFoundR.error.message.includes("not found"), "error mentions not found");
+
+      // Tool returning object
+      mcp.tool("obj", "Return object", {}, () => ({ key: "value" }));
+      const objR = await mcp.handleRequest({
+        jsonrpc: "2.0", id: 6, method: "tools/call", params: { name: "obj", arguments: {} }
+      });
+      assert(objR.result.content[0].text.includes('"key"'), "object result serialized");
+
+      // Tool returning MCP format
+      mcp.tool("raw", "Return raw", {}, () => ({ content: [{ type: "text", text: "raw!" }] }));
+      const rawR = await mcp.handleRequest({
+        jsonrpc: "2.0", id: 7, method: "tools/call", params: { name: "raw", arguments: {} }
+      });
+      eq(rawR.result.content[0].text, "raw!", "raw MCP format passed through");
+
+      // ── MCP Protocol: resources ──────────────────────────────────
+      section("MCP Protocol: resources");
+
+      const resListR = await mcp.handleRequest({ jsonrpc: "2.0", id: 8, method: "resources/list", params: {} });
+      eq(resListR.result.resources.length, 2, "2 resources listed");
+
+      const resReadR = await mcp.handleRequest({
+        jsonrpc: "2.0", id: 9, method: "resources/read", params: { uri: "test://data" }
+      });
+      assert(resReadR.result.contents[0].text.includes("hello"), "resource content returned");
+      eq(resReadR.result.contents[0].mimeType, "application/json", "mime type correct");
+
+      // Template resource
+      const tmplR = await mcp.handleRequest({
+        jsonrpc: "2.0", id: 10, method: "resources/read", params: { uri: "item://42" }
+      });
+      eq(tmplR.result.contents[0].text, "Item 42", "template resource resolved");
+
+      // Resource not found
+      const resNotFoundR = await mcp.handleRequest({
+        jsonrpc: "2.0", id: 11, method: "resources/read", params: { uri: "nope://x" }
+      });
+      assert(resNotFoundR.error, "unknown resource returns error");
+
+      // ── MCP Protocol: prompts ────────────────────────────────────
+      section("MCP Protocol: prompts");
+
+      const promptListR = await mcp.handleRequest({ jsonrpc: "2.0", id: 12, method: "prompts/list", params: {} });
+      eq(promptListR.result.prompts.length, 1, "1 prompt listed");
+
+      const promptGetR = await mcp.handleRequest({
+        jsonrpc: "2.0", id: 13, method: "prompts/get", params: { name: "greet", arguments: { name: "Agent" } }
+      });
+      eq(promptGetR.result.messages[0].content.type, "text", "prompt returns message");
+      assert(promptGetR.result.messages[0].content.text.includes("Agent"), "prompt includes arg");
+
+      // ── MCP Protocol: ping ───────────────────────────────────────
+      section("MCP Protocol: ping");
+
+      const pingR = await mcp.handleRequest({ jsonrpc: "2.0", id: 14, method: "ping", params: {} });
+      assert(pingR.result !== undefined, "ping returns result");
+
+      // ── MCP Protocol: notifications ──────────────────────────────
+      section("MCP Protocol: notifications");
+
+      const notifR = await mcp.handleRequest({ jsonrpc: "2.0", method: "notifications/initialized", params: {} });
+      eq(notifR, null, "notification returns null");
+
+      // Unknown method
+      const unknownR = await mcp.handleRequest({ jsonrpc: "2.0", id: 15, method: "unknown/method", params: {} });
+      assert(unknownR.error, "unknown method returns error");
+
+      // ── Auth: requireAuth ────────────────────────────────────────
+      section("Auth: requireAuth");
+
+      const authMcp = new BrowserMCP({ name: "AuthTest", widget: false });
+      const TOKENS = {
+        "admin-key": { id: "a1", role: "admin", roles: ["admin"], name: "Admin" },
+        "editor-key": { id: "e1", role: "editor", roles: ["editor"], name: "Editor" },
+      };
+      authMcp.requireAuth((token) => TOKENS[token] || null);
+
+      authMcp.tool("public_tool", "Public", {}, () => "public", { public: true });
+      authMcp.tool("protected_tool", "Protected", {}, (_, user) => `hello ${user.name}`);
+      authMcp.tool("admin_tool", "Admin only", {}, (_, user) => `admin: ${user.name}`, { roles: ["admin"] });
+      authMcp.tool("editor_tool", "Editor+", {}, (_, user) => `editor: ${user.name}`, { roles: ["admin", "editor"] });
+
+      await authMcp.start();
+
+      // Public tool works without auth
+      const pubR = await authMcp.handleRequest({
+        jsonrpc: "2.0", id: 20, method: "tools/call", params: { name: "public_tool", arguments: {} }
+      });
+      eq(pubR.result.content[0].text, "public", "public tool works without auth");
+
+      // Protected tool fails without auth
+      const noAuthR = await authMcp.handleRequest({
+        jsonrpc: "2.0", id: 21, method: "tools/call", params: { name: "protected_tool", arguments: {} }
+      });
+      assert(noAuthR.error, "protected tool fails without auth");
+      assert(noAuthR.error.message.includes("Authentication"), "error mentions auth");
+
+      // Login
+      const loginR = await authMcp.handleRequest({
+        jsonrpc: "2.0", id: 22, method: "tools/call", params: { name: "auth_login", arguments: { token: "admin-key" } }
+      });
+      const loginData = JSON.parse(loginR.result.content[0].text);
+      assert(loginData.session, "login returns session");
+      eq(loginData.user.name, "Admin", "login returns user name");
+      const adminSession = loginData.session;
+
+      // Invalid login
+      const badLoginR = await authMcp.handleRequest({
+        jsonrpc: "2.0", id: 23, method: "tools/call", params: { name: "auth_login", arguments: { token: "wrong" } }
+      });
+      assert(JSON.parse(badLoginR.result.content[0].text).error, "invalid token rejected");
+
+      // Protected tool works with session
+      const authCallR = await authMcp.handleRequest({
+        jsonrpc: "2.0", id: 24, method: "tools/call",
+        params: { name: "protected_tool", arguments: { _auth_token: adminSession } }
+      });
+      eq(authCallR.result.content[0].text, "hello Admin", "protected tool works with auth");
+
+      // Admin tool works for admin
+      const adminCallR = await authMcp.handleRequest({
+        jsonrpc: "2.0", id: 25, method: "tools/call",
+        params: { name: "admin_tool", arguments: { _auth_token: adminSession } }
+      });
+      eq(adminCallR.result.content[0].text, "admin: Admin", "admin tool works for admin");
+
+      // Login as editor
+      const editorLoginR = await authMcp.handleRequest({
+        jsonrpc: "2.0", id: 26, method: "tools/call", params: { name: "auth_login", arguments: { token: "editor-key" } }
+      });
+      const editorSession = JSON.parse(editorLoginR.result.content[0].text).session;
+
+      // Admin tool fails for editor
+      const editorAdminR = await authMcp.handleRequest({
+        jsonrpc: "2.0", id: 27, method: "tools/call",
+        params: { name: "admin_tool", arguments: { _auth_token: editorSession } }
+      });
+      assert(editorAdminR.error, "admin tool rejected for editor");
+      assert(editorAdminR.error.message.includes("permission"), "error mentions permissions");
+
+      // Editor tool works for editor
+      const editorCallR = await authMcp.handleRequest({
+        jsonrpc: "2.0", id: 28, method: "tools/call",
+        params: { name: "editor_tool", arguments: { _auth_token: editorSession } }
+      });
+      eq(editorCallR.result.content[0].text, "editor: Editor", "editor tool works for editor");
+
+      // Editor tool also works for admin (admin is in roles)
+      const adminEditorR = await authMcp.handleRequest({
+        jsonrpc: "2.0", id: 29, method: "tools/call",
+        params: { name: "editor_tool", arguments: { _auth_token: adminSession } }
+      });
+      eq(adminEditorR.result.content[0].text, "editor: Admin", "editor tool works for admin too");
+
+      // whoami
+      const whoR = await authMcp.handleRequest({
+        jsonrpc: "2.0", id: 30, method: "tools/call",
+        params: { name: "auth_whoami", arguments: { _auth_token: adminSession } }
+      });
+      eq(JSON.parse(whoR.result.content[0].text).authenticated, true, "whoami shows authenticated");
+
+      // Invalid session
+      const badSessR = await authMcp.handleRequest({
+        jsonrpc: "2.0", id: 31, method: "tools/call",
+        params: { name: "protected_tool", arguments: { _auth_token: "invalid-session" } }
+      });
+      assert(badSessR.error, "invalid session rejected");
+
+      // _auth_token stripped from handler args
+      authMcp.tool("check_args", "Check args", {}, (args) => JSON.stringify(Object.keys(args)));
+      const stripR = await authMcp.handleRequest({
+        jsonrpc: "2.0", id: 32, method: "tools/call",
+        params: { name: "check_args", arguments: { foo: "bar", _auth_token: adminSession } }
+      });
+      assert(!stripR.result.content[0].text.includes("_auth_token"), "_auth_token stripped from handler");
+      assert(stripR.result.content[0].text.includes("foo"), "other args preserved");
+
+      // ── Schema Normalization ─────────────────────────────────────
+      section("Schema Normalization");
+
+      const schemaMcp = new BrowserMCP({ widget: false });
+      schemaMcp.tool("t1", "d", null, () => "ok");
+      eq(schemaMcp._tools[0].inputSchema.type, "object", "null schema → empty object");
+
+      schemaMcp.tool("t2", "d", { name: "string", count: "number" }, () => "ok");
+      eq(schemaMcp._tools[1].inputSchema.properties.name.type, "string", "simple string schema");
+      eq(schemaMcp._tools[1].inputSchema.properties.count.type, "number", "simple number schema");
+
+      // ── Async Tool Handlers ──────────────────────────────────────
+      section("Async Tool Handlers");
+
+      const asyncMcp = new BrowserMCP({ widget: false });
+      asyncMcp.tool("async_tool", "Async", {}, async () => {
+        await new Promise(r => setTimeout(r, 10));
+        return "async result";
+      });
+      const asyncR = await asyncMcp.handleRequest({
+        jsonrpc: "2.0", id: 40, method: "tools/call", params: { name: "async_tool", arguments: {} }
+      });
+      eq(asyncR.result.content[0].text, "async result", "async handler works");
+
+      // ── Error Handling ───────────────────────────────────────────
+      section("Error Handling");
+
+      const errMcp = new BrowserMCP({ widget: false });
+      errMcp.tool("throw", "Throws", {}, () => { throw new Error("boom"); });
+      const throwR = await errMcp.handleRequest({
+        jsonrpc: "2.0", id: 50, method: "tools/call", params: { name: "throw", arguments: {} }
+      });
+      assert(throwR.error, "thrown error returned as MCP error");
+      assert(throwR.error.message.includes("boom"), "error message preserved");
+      eq(throwR.error.code, -32603, "error code is internal error");
+
+      // ── Request Counter ──────────────────────────────────────────
+      section("Request Counter");
+
+      const cntMcp = new BrowserMCP({ widget: false });
+      cntMcp.tool("x", "x", {}, () => "x");
+      eq(cntMcp._requestCount, 0, "starts at 0");
+      await cntMcp.handleRequest({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "x", arguments: {} } });
+      await cntMcp.handleRequest({ jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "x", arguments: {} } });
+      eq(cntMcp._requestCount, 2, "counter increments");
+
+      // ══════════════════════════════════════════════════════════════
+      // BENCHMARKS
+      // ══════════════════════════════════════════════════════════════
+
+      section("BENCHMARKS");
+      log("Running benchmarks (100 iterations each)...", "warn");
+
+      const bMcp = new BrowserMCP({ name: "Bench", widget: false });
+      for (let i = 0; i < 20; i++) {
+        bMcp.tool(`tool_${i}`, `Tool ${i}`, { x: "string" }, ({ x }) => `result_${i}_${x}`);
+      }
+      bMcp.resource("bench://data", "Bench data", "text/plain", () => "data");
+      bMcp.prompt("bench", "Bench prompt", [{ name: "q" }], ({ q }) => `prompt: ${q}`);
+
+      await bench("initialize", () =>
+        bMcp.handleRequest({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2024-11-05", capabilities: {}, clientInfo: { name: "bench" } } })
+      );
+
+      await bench("tools/list", () =>
+        bMcp.handleRequest({ jsonrpc: "2.0", id: 1, method: "tools/list", params: {} })
+      );
+
+      await bench("tools/call (simple)", () =>
+        bMcp.handleRequest({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "tool_0", arguments: { x: "test" } } })
+      );
+
+      await bench("tools/call (20th tool)", () =>
+        bMcp.handleRequest({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "tool_19", arguments: { x: "test" } } })
+      );
+
+      await bench("resources/read", () =>
+        bMcp.handleRequest({ jsonrpc: "2.0", id: 1, method: "resources/read", params: { uri: "bench://data" } })
+      );
+
+      await bench("prompts/get", () =>
+        bMcp.handleRequest({ jsonrpc: "2.0", id: 1, method: "prompts/get", params: { name: "bench", arguments: { q: "test" } } })
+      );
+
+      await bench("ping", () =>
+        bMcp.handleRequest({ jsonrpc: "2.0", id: 1, method: "ping", params: {} })
+      );
+
+      // Auth benchmarks
+      const abMcp = new BrowserMCP({ name: "AuthBench", widget: false });
+      abMcp.requireAuth((t) => t === "key" ? { id: "u", role: "admin", roles: ["admin"], name: "U" } : null);
+      abMcp.tool("authed", "Auth tool", {}, (_, u) => u.name);
+      abMcp.tool("pub", "Public", {}, () => "ok", { public: true });
+      await abMcp.start();
+
+      const authLoginR = await abMcp.handleRequest({
+        jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "auth_login", arguments: { token: "key" } }
+      });
+      const benchSession = JSON.parse(authLoginR.result.content[0].text).session;
+
+      await bench("auth_login", () =>
+        abMcp.handleRequest({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "auth_login", arguments: { token: "key" } } })
+      );
+
+      await bench("tools/call (public, auth enabled)", () =>
+        abMcp.handleRequest({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "pub", arguments: {} } })
+      );
+
+      await bench("tools/call (authenticated)", () =>
+        abMcp.handleRequest({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "authed", arguments: { _auth_token: benchSession } } })
+      );
+
+      // Throughput test
+      log("\n  Throughput test: 1000 calls...", "warn");
+      const t0 = performance.now();
+      for (let i = 0; i < 1000; i++) {
+        await bMcp.handleRequest({ jsonrpc: "2.0", id: i, method: "tools/call", params: { name: "tool_0", arguments: { x: "t" } } });
+      }
+      const elapsed = performance.now() - t0;
+      const throughput = Math.round(1000 / (elapsed / 1000));
+      log(`  1000 calls in ${elapsed.toFixed(1)}ms = ${throughput} ops/sec`, "warn");
+      benchResults.push({ name: "throughput (1000 calls)", iterations: 1000, min: 0, max: 0, median: 0, avg: elapsed / 1000, p95: 0, opsPerSec: throughput });
+
+      // ── Render results ──────────────────────────────────────────
+
+      const total = passed + failed;
+      const summary = document.createElement("div");
+      summary.className = "summary " + (failed === 0 ? "pass" : "fail");
+      summary.textContent = `${passed}/${total} tests passed` + (failed > 0 ? ` (${failed} FAILED)` : " — ALL PASS");
+      out.appendChild(summary);
+
+      // Benchmark table
+      const benchDiv = document.getElementById('bench-output');
+      benchDiv.innerHTML = `
+        <h2 style="color:#fbbf24;margin-top:20px;">Benchmark Results</h2>
+        <table class="bench-table">
+          <thead><tr><th>Operation</th><th>Iterations</th><th>Avg (ms)</th><th>Median (ms)</th><th>P95 (ms)</th><th>ops/sec</th></tr></thead>
+          <tbody>
+            ${benchResults.map(b => `
+              <tr>
+                <td>${b.name}</td>
+                <td class="num">${b.iterations}</td>
+                <td class="num">${b.avg.toFixed(3)}</td>
+                <td class="num">${b.median.toFixed(3)}</td>
+                <td class="num">${b.p95.toFixed(3)}</td>
+                <td class="num" style="color:#4ade80;">${b.opsPerSec.toLocaleString()}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+    }
+
+    runTests().catch(e => log(`FATAL: ${e.message}\n${e.stack}`, "fail"));
+  </script>
+</body>
+</html>
