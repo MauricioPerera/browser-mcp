@@ -26,6 +26,12 @@
   const capturedLogs = [];
   const networkLog = [];
   const MAX_LOG = 200;
+  let _listenersInstalled = false;
+  let _registered = false;
+
+  function installListeners() {
+    if (_listenersInstalled) return;
+    _listenersInstalled = true;
 
   // Capture JS errors
   window.addEventListener('error', (e) => {
@@ -86,6 +92,8 @@
     }
   };
 
+  } // end installListeners
+
   // ─── Plugin ────────────────────────────────────────────────────────────────
 
   const BrowserMCPDebug = {
@@ -96,6 +104,9 @@
      * @param {boolean} [opts.requireAuth=false] — require auth for debug tools
      */
     register(mcp, opts = {}) {
+      if (_registered) { console.warn('[BrowserMCPDebug] Already registered'); return; }
+      _registered = true;
+      installListeners();
       const toolOpts = opts.requireAuth ? {} : { public: true };
 
       // ── 1. Health Check ──────────────────────────────────────────
@@ -160,7 +171,7 @@
             id: el.id || null,
             classes: Array.from(el.classList),
             text: el.textContent?.slice(0, 200),
-            html: el.outerHTML?.slice(0, 500),
+            html: el.outerHTML?.length > 500 ? el.outerHTML.slice(0, 500) + '... [truncated]' : el.outerHTML,
             rect: el.getBoundingClientRect(),
             visible: el.offsetParent !== null,
             children: el.children.length,
@@ -213,19 +224,23 @@
 
       mcp.tool('debug_storage', 'Inspect localStorage and sessionStorage', { type: 'string' },
         ({ type }) => {
-          const storage = type === 'session' ? sessionStorage : localStorage;
-          const entries = {};
-          for (let i = 0; i < storage.length; i++) {
-            const key = storage.key(i);
-            const val = storage.getItem(key);
-            entries[key] = val?.length > 200 ? val.slice(0, 200) + '...' : val;
+          try {
+            const storage = type === 'session' ? sessionStorage : localStorage;
+            const entries = {};
+            for (let i = 0; i < storage.length; i++) {
+              const key = storage.key(i);
+              const val = storage.getItem(key);
+              entries[key] = val?.length > 200 ? val.slice(0, 200) + '...' : val;
+            }
+            return JSON.stringify({
+              type: type || 'local',
+              count: storage.length,
+              total_bytes: JSON.stringify(entries).length,
+              entries,
+            }, null, 2);
+          } catch (e) {
+            return JSON.stringify({ error: 'Storage not available (private browsing or blocked)', message: e.message });
           }
-          return JSON.stringify({
-            type: type || 'local',
-            count: storage.length,
-            total_bytes: JSON.stringify(entries).length,
-            entries,
-          }, null, 2);
         },
         toolOpts
       );
@@ -251,7 +266,7 @@
             const result = Function('"use strict"; return (' + code + ')')();
             return typeof result === 'object' ? JSON.stringify(result, null, 2) : String(result);
           } catch (e) {
-            return `Error: ${e.message}`;
+            return JSON.stringify({ error: true, message: String(e.message).slice(0, 500) });
           }
         },
         opts.requireAuth ? { roles: ['admin'] } : toolOpts
