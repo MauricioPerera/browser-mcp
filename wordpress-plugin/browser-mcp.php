@@ -37,11 +37,12 @@ class BrowserMCP_Plugin {
      * Inject the MCP script and register WordPress tools
      */
     private function inject_mcp_script($context) {
+        // Load from local plugin dir (not CDN) — no SRI needed
         wp_enqueue_script(
             'browser-mcp',
-            'https://cdn.jsdelivr.net/npm/@rckflr/browser-mcp@0.2.0/browser-mcp.js',
+            plugin_dir_url(__FILE__) . 'browser-mcp.js',
             [],
-            '0.2.0',
+            '0.3.0',
             true
         );
 
@@ -77,18 +78,24 @@ class BrowserMCP_Plugin {
                 description: 'WordPress MCP Server — manage posts, pages, media, and settings via AI agents',
             });
 
-            // Auth: verify WordPress nonce or application password
+            // Auth: verify WordPress application password or nonce
             mcp.requireAuth(async (token) => {
                 try {
-                    const res = await fetch(rest + 'wp/v2/users/me', {
-                        headers: {
-                            'X-WP-Nonce': token === 'wp-nonce' ? nonce : '',
-                            'Authorization': token !== 'wp-nonce' ? 'Bearer ' + token : '',
-                        }
-                    });
+                    const headers = {};
+                    if (token === 'wp-nonce') {
+                        headers['X-WP-Nonce'] = nonce;
+                    } else {
+                        headers['Authorization'] = 'Bearer ' + token;
+                    }
+                    const res = await fetch(rest + 'wp/v2/users/me', { headers });
                     if (!res.ok) return null;
                     const user = await res.json();
-                    return { id: user.id, role: user.roles?.[0] || 'subscriber', name: user.name };
+                    return {
+                        id: user.id,
+                        role: user.roles?.[0] || 'subscriber',
+                        roles: user.roles || ['subscriber'],
+                        name: user.name,
+                    };
                 } catch { return null; }
             });
 
@@ -106,7 +113,7 @@ class BrowserMCP_Plugin {
 
             mcp.tool('wp_search', 'Search posts and pages', { query: 'string', limit: 'number' },
                 async ({ query, limit }) => {
-                    const res = await fetch(rest + 'wp/v2/search?search=' + encodeURIComponent(query) + '&per_page=' + (limit || 10));
+                    const res = await fetch(rest + 'wp/v2/search?search=' + encodeURIComponent(query) + '&per_page=' + Math.min(Math.max(parseInt(limit) || 10, 1), 100));
                     return await res.text();
                 },
                 { public: true }
@@ -304,8 +311,9 @@ class BrowserMCP_Plugin {
     }
 
     public function render_settings() {
-        if (isset($_POST['bmcp_save']) && check_admin_referer('bmcp_settings')) {
-            update_option('bmcp_enable_frontend', isset($_POST['bmcp_enable_frontend']));
+        if (isset($_POST['bmcp_save'])) {
+            check_admin_referer('bmcp_settings'); // Dies if invalid
+            update_option('bmcp_enable_frontend', (bool) isset($_POST['bmcp_enable_frontend']));
             echo '<div class="notice notice-success"><p>Settings saved.</p></div>';
         }
         $frontend = get_option('bmcp_enable_frontend', false);
@@ -351,4 +359,6 @@ class BrowserMCP_Plugin {
     }
 }
 
-new BrowserMCP_Plugin();
+add_action('plugins_loaded', function() {
+    new BrowserMCP_Plugin();
+});
