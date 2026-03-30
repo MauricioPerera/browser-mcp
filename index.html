@@ -3,97 +3,289 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>browser-mcp demo</title>
+  <title>browser-mcp — Turn any webpage into an MCP server</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: system-ui, sans-serif; background: #0f172a; color: #e2e8f0; max-width: 800px; margin: 0 auto; padding: 40px 20px; }
-    h1 { font-size: 2rem; margin-bottom: 4px; }
-    h1 span { color: #4ade80; }
-    .subtitle { color: #94a3b8; margin-bottom: 24px; }
-    .card { background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
-    .card h2 { font-size: 1rem; color: #38bdf8; margin-bottom: 8px; }
-    code { background: #0f172a; padding: 2px 6px; border-radius: 3px; font-size: 0.85em; }
-    pre { background: #0f172a; padding: 12px; border-radius: 6px; overflow-x: auto; font-size: 0.8rem; margin-top: 8px; }
-    .endpoint { font-family: monospace; color: #4ade80; font-size: 1.1rem; }
-    input, textarea { background: #0f172a; border: 1px solid #475569; color: #e2e8f0; padding: 8px; border-radius: 4px; width: 100%; font-family: monospace; font-size: 0.85rem; }
-    textarea { height: 100px; margin-top: 8px; }
-    button { padding: 8px 16px; background: #2563eb; color: white; border: none; border-radius: 4px; cursor: pointer; margin-top: 8px; }
+    body { font-family: system-ui, -apple-system, sans-serif; background: #0f172a; color: #e2e8f0; line-height: 1.6; }
+    a { color: #38bdf8; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* Hero */
+    .hero { max-width: 900px; margin: 0 auto; padding: 60px 20px 40px; }
+    .hero h1 { font-size: 2.5rem; margin-bottom: 8px; }
+    .hero h1 span { color: #4ade80; }
+    .hero .tagline { font-size: 1.2rem; color: #94a3b8; margin-bottom: 16px; }
+    .hero .badges { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 24px; }
+    .badge { padding: 4px 12px; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; }
+    .badge-green { background: #14532d; color: #86efac; }
+    .badge-blue { background: #1e3a5f; color: #93c5fd; }
+    .badge-purple { background: #3b0764; color: #d8b4fe; }
+
+    /* Content */
+    .content { max-width: 900px; margin: 0 auto; padding: 0 20px 60px; }
+    .card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 20px; margin-bottom: 20px; }
+    .card h2 { font-size: 1.1rem; color: #38bdf8; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+    .card h2 .num { background: #2563eb; color: white; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; }
+    h3 { font-size: 0.95rem; color: #94a3b8; margin: 16px 0 8px; text-transform: uppercase; letter-spacing: 0.05em; }
+    code { background: #0f172a; padding: 2px 6px; border-radius: 3px; font-size: 0.85em; font-family: 'SF Mono', Consolas, monospace; }
+    pre { background: #0f172a; padding: 14px; border-radius: 8px; overflow-x: auto; font-size: 0.8rem; margin: 8px 0; border: 1px solid #1e293b; font-family: 'SF Mono', Consolas, monospace; line-height: 1.5; }
+    pre .comment { color: #64748b; }
+    pre .keyword { color: #c084fc; }
+    pre .string { color: #86efac; }
+    pre .fn { color: #38bdf8; }
+
+    /* Interactive */
+    .playground { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    @media (max-width: 640px) { .playground { grid-template-columns: 1fr; } }
+    input, textarea, select { background: #0f172a; border: 1px solid #475569; color: #e2e8f0; padding: 8px 10px; border-radius: 6px; width: 100%; font-family: 'SF Mono', Consolas, monospace; font-size: 0.8rem; }
+    textarea { min-height: 80px; resize: vertical; }
+    button { padding: 8px 16px; background: #2563eb; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 0.85rem; }
     button:hover { background: #1d4ed8; }
-    #result { margin-top: 8px; }
-    .badge { display: inline-block; padding: 2px 8px; border-radius: 9999px; font-size: 0.75rem; background: #14532d; color: #86efac; }
+    button.secondary { background: #475569; }
+    .result { background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 12px; margin-top: 8px; font-family: monospace; font-size: 0.8rem; max-height: 300px; overflow-y: auto; white-space: pre-wrap; }
+
+    /* Feature grid */
+    .features { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px; margin: 16px 0; }
+    .feature { background: #0f172a; border: 1px solid #1e293b; border-radius: 8px; padding: 14px; }
+    .feature h4 { color: #4ade80; font-size: 0.9rem; margin-bottom: 4px; }
+    .feature p { color: #94a3b8; font-size: 0.8rem; }
+
+    /* Status */
+    .status-bar { display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: #14532d; border: 1px solid #16a34a; border-radius: 8px; font-size: 0.85rem; color: #86efac; margin-bottom: 20px; }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #4ade80; animation: pulse 2s infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+    /* API table */
+    table { width: 100%; border-collapse: collapse; font-size: 0.8rem; margin: 8px 0; }
+    th { text-align: left; padding: 8px; border-bottom: 2px solid #334155; color: #94a3b8; font-weight: 500; }
+    td { padding: 8px; border-bottom: 1px solid #1e293b; }
+    td code { font-size: 0.75rem; }
+
+    .footer { max-width: 900px; margin: 0 auto; padding: 20px; text-align: center; color: #64748b; font-size: 0.8rem; border-top: 1px solid #1e293b; }
   </style>
 </head>
 <body>
-  <h1>browser-<span>mcp</span></h1>
-  <p class="subtitle">Turn any webpage into an MCP server. Zero deps. One script tag.</p>
 
-  <div class="card">
-    <h2>Status</h2>
-    <p>Server: <span class="badge" id="status">starting...</span></p>
-    <p style="margin-top:8px">Endpoint: <span class="endpoint" id="endpoint"></span></p>
-    <p style="margin-top:4px;font-size:0.8rem;color:#94a3b8">POST JSON-RPC to this URL to interact with the MCP server</p>
+  <!-- Hero -->
+  <div class="hero">
+    <h1>browser-<span>mcp</span></h1>
+    <p class="tagline">Turn any webpage into an MCP server. Zero dependencies. One script tag.</p>
+    <div class="badges">
+      <span class="badge badge-green">8 KB</span>
+      <span class="badge badge-blue">MCP Spec Compliant</span>
+      <span class="badge badge-purple">Auth + Roles</span>
+      <span class="badge badge-green">Zero Deps</span>
+    </div>
+    <div>
+      <a href="https://www.npmjs.com/package/@rckflr/browser-mcp">npm</a> &nbsp;|&nbsp;
+      <a href="https://github.com/MauricioPerera/browser-mcp">GitHub</a> &nbsp;|&nbsp;
+      <a href="#playground">Try It Live</a> &nbsp;|&nbsp;
+      <a href="#wordpress">WordPress Plugin</a>
+    </div>
   </div>
 
-  <div class="card">
-    <h2>Registered Tools</h2>
-    <div id="tools-list"></div>
+  <div class="content">
+
+    <!-- Live Status -->
+    <div class="status-bar" id="status">
+      <div class="status-dot"></div>
+      <span>MCP server starting...</span>
+    </div>
+
+    <!-- Install -->
+    <div class="card">
+      <h2><span class="num">1</span> Install</h2>
+      <pre>&lt;script src="https://cdn.jsdelivr.net/npm/@rckflr/browser-mcp@0.3.0/browser-mcp.js"&gt;&lt;/script&gt;</pre>
+      <p style="margin-top:8px;font-size:0.85rem;color:#94a3b8;">Or: <code>npm install @rckflr/browser-mcp</code></p>
+    </div>
+
+    <!-- Quick Start -->
+    <div class="card">
+      <h2><span class="num">2</span> Register Tools</h2>
+      <pre><span class="keyword">const</span> mcp = <span class="keyword">new</span> <span class="fn">BrowserMCP</span>({ name: <span class="string">"My Site"</span> });
+
+<span class="comment">// Public tool — anyone can call</span>
+mcp.<span class="fn">tool</span>(<span class="string">"search"</span>, <span class="string">"Search this page"</span>, { query: <span class="string">"string"</span> },
+  ({ query }) => document.body.innerText.includes(query) ? <span class="string">"Found"</span> : <span class="string">"Not found"</span>,
+  { public: <span class="keyword">true</span> }
+);
+
+<span class="comment">// Protected tool — requires auth</span>
+mcp.<span class="fn">tool</span>(<span class="string">"edit_page"</span>, <span class="string">"Edit page content"</span>, { html: <span class="string">"string"</span> },
+  ({ html }, user) => { document.body.innerHTML = html; <span class="keyword">return</span> <span class="string">"Updated by "</span> + user.name; },
+  { roles: [<span class="string">"admin"</span>] }
+);</pre>
+    </div>
+
+    <!-- Auth -->
+    <div class="card">
+      <h2><span class="num">3</span> Add Auth (Optional)</h2>
+      <pre><span class="comment">// Simple token-based auth</span>
+<span class="keyword">const</span> TOKENS = {
+  <span class="string">"secret-admin-key"</span>: { id: <span class="string">"admin"</span>, role: <span class="string">"admin"</span>, name: <span class="string">"Admin"</span> },
+  <span class="string">"editor-key"</span>:       { id: <span class="string">"editor"</span>, role: <span class="string">"editor"</span>, name: <span class="string">"Editor"</span> },
+};
+mcp.<span class="fn">requireAuth</span>((token) => TOKENS[token] || <span class="keyword">null</span>);
+
+<span class="comment">// Or verify against your API</span>
+mcp.<span class="fn">requireAuth</span>(<span class="keyword">async</span> (token) => {
+  <span class="keyword">const</span> res = <span class="keyword">await</span> <span class="fn">fetch</span>(<span class="string">"/api/verify"</span>, { headers: { Authorization: <span class="string">`Bearer ${token}`</span> } });
+  <span class="keyword">return</span> res.ok ? <span class="keyword">await</span> res.<span class="fn">json</span>() : <span class="keyword">null</span>;
+});</pre>
+    </div>
+
+    <!-- Start -->
+    <div class="card">
+      <h2><span class="num">4</span> Start</h2>
+      <pre>mcp.<span class="fn">start</span>();
+<span class="comment">// Widget appears. Agents can connect. That's it.</span></pre>
+    </div>
+
+    <!-- Features -->
+    <div class="card">
+      <h2>Features</h2>
+      <div class="features">
+        <div class="feature"><h4>Tools</h4><p>Let agents perform actions on your site</p></div>
+        <div class="feature"><h4>Resources</h4><p>Expose data via URIs (static or template)</p></div>
+        <div class="feature"><h4>Prompts</h4><p>Pre-built templates for agent interactions</p></div>
+        <div class="feature"><h4>Auth + Roles</h4><p>Token-based auth with role restrictions</p></div>
+        <div class="feature"><h4>Session Management</h4><p>Auto-expiring sessions (1h TTL)</p></div>
+        <div class="feature"><h4>Widget</h4><p>Floating status indicator with tool list</p></div>
+        <div class="feature"><h4>BroadcastChannel</h4><p>Cross-tab communication for agents</p></div>
+        <div class="feature"><h4>WordPress Plugin</h4><p>13 tools for WP admin automation</p></div>
+      </div>
+    </div>
+
+    <!-- API Reference -->
+    <div class="card">
+      <h2>API Reference</h2>
+
+      <h3>Constructor</h3>
+      <pre><span class="keyword">new</span> <span class="fn">BrowserMCP</span>({ name, version, description, widget, endpoint })</pre>
+
+      <h3>Registration</h3>
+      <table>
+        <tr><td><code>mcp.tool(name, desc, schema, handler, opts?)</code></td><td>Register a tool. opts: <code>{ public, roles }</code></td></tr>
+        <tr><td><code>mcp.resource(uri, desc, mime?, handler)</code></td><td>Expose data. URI templates: <code>"data://{id}"</code></td></tr>
+        <tr><td><code>mcp.prompt(name, desc, args, handler)</code></td><td>Prompt template</td></tr>
+        <tr><td><code>mcp.requireAuth(verifier)</code></td><td><code>(token) => user | null</code></td></tr>
+      </table>
+
+      <h3>Lifecycle</h3>
+      <table>
+        <tr><td><code>await mcp.start()</code></td><td>Start server, show widget</td></tr>
+        <tr><td><code>mcp.stop()</code></td><td>Stop server, remove widget</td></tr>
+        <tr><td><code>mcp.listTools()</code></td><td>Get tool names array</td></tr>
+      </table>
+
+      <h3>Direct Access</h3>
+      <table>
+        <tr><td><code>mcp.handleRequest(jsonRpc)</code></td><td>Call MCP method directly (for testing)</td></tr>
+        <tr><td><code>window._browserMCP</code></td><td>Global reference after start()</td></tr>
+      </table>
+
+      <h3>Auth Flow (for agents)</h3>
+      <table>
+        <tr><td>1.</td><td>Call <code>auth_login</code> with token → get session ID</td></tr>
+        <tr><td>2.</td><td>Include <code>_auth_token</code> in all tool calls</td></tr>
+        <tr><td>3.</td><td>Sessions expire after 1 hour</td></tr>
+      </table>
+    </div>
+
+    <!-- Playground -->
+    <div class="card" id="playground">
+      <h2>Live Playground</h2>
+      <p style="font-size:0.85rem;color:#94a3b8;margin-bottom:12px;">This page is running a BrowserMCP server right now. Try calling tools:</p>
+
+      <div class="playground">
+        <div>
+          <label style="font-size:0.8rem;color:#94a3b8;">Tool name</label>
+          <select id="test-tool" onchange="fillArgs()">
+            <option value="get_time">get_time (public)</option>
+            <option value="greet" selected>greet (public)</option>
+            <option value="search_page">search_page (public)</option>
+            <option value="calculate">calculate (public)</option>
+            <option value="get_page_info">get_page_info (auth required)</option>
+            <option value="admin_stats">admin_stats (admin only)</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size:0.8rem;color:#94a3b8;">Arguments (JSON)</label>
+          <input id="test-args" value='{"name": "World"}'>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:8px;">
+        <button onclick="testCall()">Call Tool</button>
+        <button class="secondary" onclick="testLogin()">Login as Admin</button>
+        <button class="secondary" onclick="testList()">List Tools</button>
+      </div>
+      <div class="result" id="result">Click a button to see results...</div>
+    </div>
+
+    <!-- WordPress -->
+    <div class="card" id="wordpress">
+      <h2>WordPress Plugin</h2>
+      <p style="font-size:0.85rem;color:#94a3b8;margin-bottom:12px;">Drop the plugin into <code>wp-content/plugins/browser-mcp/</code> and activate. 13 tools auto-registered:</p>
+      <table>
+        <thead><tr><th>Tool</th><th>Roles</th><th>Action</th></tr></thead>
+        <tbody>
+          <tr><td><code>wp_site_info</code></td><td>public</td><td>Site metadata</td></tr>
+          <tr><td><code>wp_search</code></td><td>public</td><td>Search posts/pages</td></tr>
+          <tr><td><code>wp_list_posts</code></td><td>auth</td><td>List posts</td></tr>
+          <tr><td><code>wp_create_post</code></td><td>editor+</td><td>Create post</td></tr>
+          <tr><td><code>wp_update_post</code></td><td>editor+</td><td>Edit post</td></tr>
+          <tr><td><code>wp_delete_post</code></td><td>editor+</td><td>Delete post</td></tr>
+          <tr><td><code>wp_list_users</code></td><td>admin</td><td>List users</td></tr>
+          <tr><td><code>wp_get_settings</code></td><td>admin</td><td>WP settings</td></tr>
+          <tr><td><code>wp_list_plugins</code></td><td>admin</td><td>Installed plugins</td></tr>
+        </tbody>
+      </table>
+      <p style="margin-top:12px;font-size:0.8rem;color:#64748b;">
+        <a href="https://github.com/MauricioPerera/browser-mcp/tree/master/wordpress-plugin">View plugin source on GitHub</a>
+      </p>
+    </div>
+
+    <!-- Use Cases -->
+    <div class="card">
+      <h2>Use Cases</h2>
+      <div class="features">
+        <div class="feature"><h4>E-commerce</h4><p>Agents search products, check inventory, add to cart</p></div>
+        <div class="feature"><h4>CMS / WordPress</h4><p>Create posts, manage content, moderate comments</p></div>
+        <div class="feature"><h4>Dashboards</h4><p>Expose metrics and KPIs to AI analysis</p></div>
+        <div class="feature"><h4>Documentation</h4><p>Make docs searchable and navigable by agents</p></div>
+        <div class="feature"><h4>Internal Tools</h4><p>AI-automate any web app your team uses</p></div>
+        <div class="feature"><h4>Prototyping</h4><p>Quickly expose any page for agent testing</p></div>
+      </div>
+    </div>
   </div>
 
-  <div class="card">
-    <h2>Test: Call a Tool</h2>
-    <input id="test-tool" placeholder="Tool name (e.g. greet)" value="greet">
-    <textarea id="test-args" placeholder='Arguments JSON (e.g. {"name": "World"})'></textarea>
-    <button onclick="testCall()">Call Tool</button>
-    <pre id="result">Results appear here...</pre>
+  <!-- Footer -->
+  <div class="footer">
+    browser-mcp v0.3.0 — MIT License — <a href="https://github.com/MauricioPerera">Mauricio Perera</a>
   </div>
 
-  <div class="card">
-    <h2>Test: Raw JSON-RPC</h2>
-    <textarea id="raw-rpc" style="height:80px">{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}</textarea>
-    <button onclick="testRaw()">Send</button>
-    <pre id="raw-result"></pre>
-  </div>
-
-  <div class="card">
-    <h2>How to use</h2>
-    <pre>&lt;script src="browser-mcp.js"&gt;&lt;/script&gt;
-&lt;script&gt;
-  const mcp = new BrowserMCP({ name: "My Site" });
-
-  mcp.tool("greet", "Say hello", { name: "string" },
-    ({ name }) =&gt; `Hello ${name}!`
-  );
-
-  mcp.tool("search", "Search page", { query: "string" },
-    ({ query }) =&gt; document.body.innerText.includes(query)
-      ? "Found!" : "Not found"
-  );
-
-  mcp.start();
-&lt;/script&gt;</pre>
-  </div>
-
+  <!-- MCP Server -->
   <script src="browser-mcp.js"></script>
   <script>
-    const mcp = new BrowserMCP({
-      name: "Demo MCP Server",
-      version: "0.1.0",
-      description: "A demo MCP server running in the browser",
-    });
-
-    // Example tools
-    mcp.tool("greet", "Say hello to someone", { name: "string" },
-      ({ name }) => `Hello ${name}! This response came from an MCP server running in your browser.`
-    );
-
-    // Auth: simple token-based
     const USERS = {
       "admin-key-123": { id: "admin", role: "admin", name: "Admin" },
       "editor-key-456": { id: "editor", role: "editor", name: "Editor" },
     };
+
+    const mcp = new BrowserMCP({
+      name: "browser-mcp Demo",
+      version: "0.3.0",
+      description: "Live demo of browser-mcp with auth, roles, and example tools",
+    });
+
     mcp.requireAuth((token) => USERS[token] || null);
 
-    // Public tool (no auth needed)
+    // Public tools
+    mcp.tool("greet", "Say hello to someone", { name: "string" },
+      ({ name }) => `Hello ${name}! This came from an MCP server in your browser.`,
+      { public: true }
+    );
+
     mcp.tool("get_time", "Get current date and time", {},
       () => new Date().toISOString(),
       { public: true }
@@ -102,75 +294,97 @@
     mcp.tool("search_page", "Search for text in this page", { query: "string" },
       ({ query }) => {
         const text = document.body.innerText;
-        const found = text.toLowerCase().includes(query.toLowerCase());
-        return found ? `Found "${query}" in the page content` : `"${query}" not found in page`;
-      }
+        return text.toLowerCase().includes(query.toLowerCase())
+          ? `Found "${query}" in page (${text.length} chars total)`
+          : `"${query}" not found`;
+      },
+      { public: true }
     );
 
-    mcp.tool("calculate", "Do math", { expression: "string" },
+    mcp.tool("calculate", "Evaluate a math expression", { expression: "string" },
       ({ expression }) => {
-        try { return String(Function('"use strict"; return (' + expression + ')')());
-        } catch (e) { return `Error: ${e.message}`; }
-      }
+        try { return String(Function('"use strict"; return (' + expression + ')')()); }
+        catch (e) { return `Error: ${e.message}`; }
+      },
+      { public: true }
     );
 
-    // Admin-only tool
-    mcp.tool("admin_stats", "Get server stats (admin only)", {},
-      (_, user) => JSON.stringify({ user: user.name, role: user.role, tools: mcp.listTools().length, uptime: Date.now() }),
-      { roles: ["admin"] }
-    );
-
-    mcp.tool("get_page_info", "Get information about the current page", {},
+    // Auth-required tools
+    mcp.tool("get_page_info", "Get page metadata (requires auth)", {},
       (_, user) => JSON.stringify({
-        title: document.title,
-        url: location.href,
+        title: document.title, url: location.href,
         elements: document.querySelectorAll('*').length,
-        text_length: document.body.innerText.length,
+        user: user.name,
       }, null, 2)
     );
 
-    // Example resource
-    mcp.resource("page://content", "Full page text content", "text/plain",
-      () => document.body.innerText
+    mcp.tool("admin_stats", "Server statistics (admin only)", {},
+      (_, user) => JSON.stringify({
+        tools: mcp.listTools().length, requests: mcp._requestCount,
+        sessions: mcp._sessions.size, uptime_ms: Date.now(),
+        caller: user.name,
+      }, null, 2),
+      { roles: ["admin"] }
     );
 
-    // Example prompt
-    mcp.prompt("analyze", "Analyze this page", [{ name: "focus", description: "What to focus on" }],
-      ({ focus }) => ({
-        messages: [{ role: 'user', content: { type: 'text', text: `Analyze this page. Focus on: ${focus || 'everything'}. Page content: ${document.body.innerText.slice(0, 2000)}` } }]
-      })
+    // Resources
+    mcp.resource("page://content", "Full page text", "text/plain",
+      () => document.body.innerText.slice(0, 5000)
+    );
+
+    mcp.resource("page://title", "Page title", "text/plain",
+      () => document.title
+    );
+
+    // Prompts
+    mcp.prompt("summarize", "Summarize this page", [{ name: "focus", description: "What to focus on" }],
+      ({ focus }) => `Summarize this page, focusing on ${focus || 'everything'}. Content: ${document.body.innerText.slice(0, 3000)}`
     );
 
     mcp.start().then(() => {
-      document.getElementById('status').textContent = 'running';
-      document.getElementById('endpoint').textContent = location.origin + '/mcp';
-      document.getElementById('tools-list').innerHTML = mcp._tools.map(t =>
-        `<div style="padding:4px 0;border-bottom:1px solid #334155"><code>${t.name}</code> — ${t.description}</div>`
-      ).join('');
-      document.getElementById('test-args').value = '{"name": "World"}';
+      document.getElementById('status').innerHTML = `
+        <div class="status-dot"></div>
+        <span>MCP server running — ${mcp.listTools().length} tools registered</span>
+        <span style="margin-left:auto;font-size:0.75rem;color:#64748b;">Auth tokens: admin-key-123 | editor-key-456</span>
+      `;
     });
 
-    // Test functions
-    window.testCall = async function() {
-      const name = document.getElementById('test-tool').value;
-      const argsStr = document.getElementById('test-args').value;
-      let args = {};
-      try { args = JSON.parse(argsStr || '{}'); } catch {}
+    // Playground helpers
+    let sessionToken = null;
 
-      const request = { jsonrpc: '2.0', id: Date.now(), method: 'tools/call', params: { name, arguments: args } };
-      const response = await mcp.handleRequest(request);
-      document.getElementById('result').textContent = JSON.stringify(response, null, 2);
+    const argExamples = {
+      greet: '{"name": "World"}',
+      get_time: '{}',
+      search_page: '{"query": "MCP"}',
+      calculate: '{"expression": "42 * 10 + 7"}',
+      get_page_info: '{}',
+      admin_stats: '{}',
     };
 
-    window.testRaw = async function() {
-      const body = document.getElementById('raw-rpc').value;
-      try {
-        const request = JSON.parse(body);
-        const response = await mcp.handleRequest(request);
-        document.getElementById('raw-result').textContent = JSON.stringify(response, null, 2);
-      } catch (e) {
-        document.getElementById('raw-result').textContent = 'Error: ' + e.message;
-      }
+    window.fillArgs = function() {
+      const tool = document.getElementById('test-tool').value;
+      document.getElementById('test-args').value = argExamples[tool] || '{}';
+    };
+
+    window.testCall = async function() {
+      const name = document.getElementById('test-tool').value;
+      let args = {};
+      try { args = JSON.parse(document.getElementById('test-args').value || '{}'); } catch {}
+      if (sessionToken) args._auth_token = sessionToken;
+      const r = await mcp.handleRequest({ jsonrpc: '2.0', id: Date.now(), method: 'tools/call', params: { name, arguments: args } });
+      document.getElementById('result').textContent = JSON.stringify(r, null, 2);
+    };
+
+    window.testLogin = async function() {
+      const r = await mcp.handleRequest({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'auth_login', arguments: { token: 'admin-key-123' } } });
+      const data = JSON.parse(r.result.content[0].text);
+      sessionToken = data.session;
+      document.getElementById('result').textContent = `Logged in as ${data.user.name}!\nSession: ${sessionToken}\n\nNow try calling auth-required tools.`;
+    };
+
+    window.testList = async function() {
+      const r = await mcp.handleRequest({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} });
+      document.getElementById('result').textContent = JSON.stringify(r, null, 2);
     };
   </script>
 </body>
