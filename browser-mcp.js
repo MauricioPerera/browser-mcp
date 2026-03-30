@@ -177,7 +177,8 @@
       global._browserMCP = this;
 
       // Listen for postMessage (cross-tab, iframe, extension communication)
-      window.addEventListener('message', async (event) => {
+      this._messageHandler = async (event) => {
+        if (!this._started) return;
         if (event.data?.type === 'mcp-request' && event.data.body) {
           const response = await this.handleRequest(event.data.body);
           if (response && event.source) {
@@ -187,7 +188,8 @@
             event.ports[0].postMessage(response);
           }
         }
-      });
+      };
+      window.addEventListener('message', this._messageHandler);
 
       // BroadcastChannel for same-origin cross-tab communication
       try {
@@ -210,6 +212,7 @@
       this._started = false;
       if (this._cleanupTimer) clearInterval(this._cleanupTimer);
       if (this._channel) this._channel.close();
+      if (this._messageHandler) window.removeEventListener('message', this._messageHandler);
       document.getElementById('browser-mcp-widget')?.remove();
     }
 

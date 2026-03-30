@@ -50,7 +50,7 @@ class BrowserMCP_Plugin {
         wp_localize_script('browser-mcp', 'bmcpConfig', [
             'restUrl'   => esc_url_raw(rest_url()),
             'nonce'     => wp_create_nonce('wp_rest'),
-            'siteTitle' => get_bloginfo('name'),
+            'siteTitle' => wp_strip_all_tags(get_bloginfo('name')),
             'context'   => $context,
             'userId'    => get_current_user_id(),
             'isAdmin'   => current_user_can('manage_options'),
@@ -78,17 +78,19 @@ class BrowserMCP_Plugin {
                 description: 'WordPress MCP Server — manage posts, pages, media, and settings via AI agents',
             });
 
-            // Auth: verify WordPress application password or nonce
+            // Auth: verify WordPress nonce (admin) or application password (external)
+            let _authHeaders = {};
             mcp.requireAuth(async (token) => {
                 try {
                     const headers = {};
                     if (token === 'wp-nonce') {
                         headers['X-WP-Nonce'] = nonce;
                     } else {
-                        headers['Authorization'] = 'Bearer ' + token;
+                        headers['Authorization'] = 'Basic ' + btoa(token);
                     }
                     const res = await fetch(rest + 'wp/v2/users/me', { headers });
                     if (!res.ok) return null;
+                    _authHeaders = headers; // Store for tool calls
                     const user = await res.json();
                     return {
                         id: user.id,
@@ -98,6 +100,17 @@ class BrowserMCP_Plugin {
                     };
                 } catch { return null; }
             });
+
+            // Helper: get auth headers for REST calls
+            function wpHeaders() {
+                if (_authHeaders['X-WP-Nonce']) return { 'X-WP-Nonce': _authHeaders['X-WP-Nonce'] };
+                if (_authHeaders['Authorization']) return { 'Authorization': _authHeaders['Authorization'] };
+                return { 'X-WP-Nonce': nonce }; // fallback to page nonce
+            }
+
+            function clampLimit(limit, def) {
+                return Math.min(Math.max(parseInt(limit) || def, 1), 100);
+            }
 
             // ── Public tools ──────────────────────────────────────────
 
@@ -124,8 +137,8 @@ class BrowserMCP_Plugin {
             mcp.tool('wp_list_posts', 'List recent posts', { status: 'string', limit: 'number' },
                 async ({ status, limit }, user) => {
                     const s = status || 'publish';
-                    const res = await fetch(rest + 'wp/v2/posts?status=' + s + '&per_page=' + (limit || 10), {
-                        headers: { 'X-WP-Nonce': nonce }
+                    const res = await fetch(rest + 'wp/v2/posts?status=' + s + '&per_page=' + clampLimit(limit, 10), {
+                        headers: wpHeaders()
                     });
                     const posts = await res.json();
                     return JSON.stringify(posts.map(p => ({
@@ -138,7 +151,7 @@ class BrowserMCP_Plugin {
             mcp.tool('wp_get_post', 'Get a single post by ID', { id: 'number' },
                 async ({ id }, user) => {
                     const res = await fetch(rest + 'wp/v2/posts/' + id, {
-                        headers: { 'X-WP-Nonce': nonce }
+                        headers: wpHeaders()
                     });
                     if (!res.ok) return 'Post not found';
                     const p = await res.json();
@@ -155,7 +168,7 @@ class BrowserMCP_Plugin {
                 async ({ title, content, status }, user) => {
                     const res = await fetch(rest + 'wp/v2/posts', {
                         method: 'POST',
-                        headers: { 'X-WP-Nonce': nonce, 'Content-Type': 'application/json' },
+                        headers: { ...wpHeaders(), 'Content-Type': 'application/json' },
                         body: JSON.stringify({ title, content, status: status || 'draft' }),
                     });
                     if (!res.ok) return 'Error: ' + (await res.text());
@@ -175,7 +188,7 @@ class BrowserMCP_Plugin {
                     if (status) body.status = status;
                     const res = await fetch(rest + 'wp/v2/posts/' + id, {
                         method: 'PUT',
-                        headers: { 'X-WP-Nonce': nonce, 'Content-Type': 'application/json' },
+                        headers: { ...wpHeaders(), 'Content-Type': 'application/json' },
                         body: JSON.stringify(body),
                     });
                     if (!res.ok) return 'Error: ' + (await res.text());
@@ -188,7 +201,7 @@ class BrowserMCP_Plugin {
                 async ({ id }, user) => {
                     const res = await fetch(rest + 'wp/v2/posts/' + id, {
                         method: 'DELETE',
-                        headers: { 'X-WP-Nonce': nonce },
+                        headers: wpHeaders(),
                     });
                     return res.ok ? 'Deleted post ' + id : 'Error: ' + (await res.text());
                 },
@@ -197,8 +210,8 @@ class BrowserMCP_Plugin {
 
             mcp.tool('wp_list_pages', 'List all pages', { limit: 'number' },
                 async ({ limit }, user) => {
-                    const res = await fetch(rest + 'wp/v2/pages?per_page=' + (limit || 20), {
-                        headers: { 'X-WP-Nonce': nonce }
+                    const res = await fetch(rest + 'wp/v2/pages?per_page=' + clampLimit(limit, 20), {
+                        headers: wpHeaders()
                     });
                     const pages = await res.json();
                     return JSON.stringify(pages.map(p => ({
@@ -210,7 +223,7 @@ class BrowserMCP_Plugin {
             mcp.tool('wp_list_categories', 'List all categories', {},
                 async (_, user) => {
                     const res = await fetch(rest + 'wp/v2/categories?per_page=100', {
-                        headers: { 'X-WP-Nonce': nonce }
+                        headers: wpHeaders()
                     });
                     const cats = await res.json();
                     return JSON.stringify(cats.map(c => ({ id: c.id, name: c.name, count: c.count })));
@@ -219,8 +232,8 @@ class BrowserMCP_Plugin {
 
             mcp.tool('wp_list_users', 'List WordPress users', { limit: 'number' },
                 async ({ limit }, user) => {
-                    const res = await fetch(rest + 'wp/v2/users?per_page=' + (limit || 20), {
-                        headers: { 'X-WP-Nonce': nonce }
+                    const res = await fetch(rest + 'wp/v2/users?per_page=' + clampLimit(limit, 20), {
+                        headers: wpHeaders()
                     });
                     const users = await res.json();
                     return JSON.stringify(users.map(u => ({
@@ -233,7 +246,7 @@ class BrowserMCP_Plugin {
             mcp.tool('wp_get_settings', 'Get WordPress site settings', {},
                 async (_, user) => {
                     const res = await fetch(rest + 'wp/v2/settings', {
-                        headers: { 'X-WP-Nonce': nonce }
+                        headers: wpHeaders()
                     });
                     if (!res.ok) return 'Error: insufficient permissions';
                     return await res.text();
@@ -244,7 +257,7 @@ class BrowserMCP_Plugin {
             mcp.tool('wp_list_plugins', 'List installed plugins', {},
                 async (_, user) => {
                     const res = await fetch(rest + 'wp/v2/plugins', {
-                        headers: { 'X-WP-Nonce': nonce }
+                        headers: wpHeaders()
                     });
                     if (!res.ok) return 'Error: ' + res.status;
                     const plugins = await res.json();
@@ -293,7 +306,7 @@ class BrowserMCP_Plugin {
                     'tools' => 13,
                 ]);
             },
-            'permission_callback' => '__return_true',
+            'permission_callback' => function() { return is_user_logged_in(); },
         ]);
     }
 
@@ -336,7 +349,7 @@ class BrowserMCP_Plugin {
                     </tr>
                     <tr>
                         <th>MCP Endpoint</th>
-                        <td><code><?php echo home_url('/mcp'); ?></code></td>
+                        <td><code><?php echo esc_url(home_url('/mcp')); ?></code></td>
                     </tr>
                     <tr>
                         <th>Tools Available</th>
