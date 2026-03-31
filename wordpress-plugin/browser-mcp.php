@@ -95,8 +95,8 @@ class BrowserMCP_Plugin {
                 if (typeof mcpTool === 'function') {
                     mcpTool(name, desc, schema, handler);
                 }
-                if (mcp) {
-                    registerTool(name, desc, schema, handler, opts);
+                if (mcp && mcp.tool) {
+                    mcp.tool(name, desc, schema, handler, opts);
                 }
             }
 
@@ -292,7 +292,7 @@ class BrowserMCP_Plugin {
 
             // ── Resources ─────────────────────────────────────────────
 
-            mcp.resource('wp://site', 'WordPress site metadata', 'application/json',
+            if (mcp && mcp.resource) mcp.resource('wp://site', 'WordPress site metadata', 'application/json',
                 () => JSON.stringify({
                     title: cfg.siteTitle,
                     url: window.location.origin,
@@ -301,7 +301,7 @@ class BrowserMCP_Plugin {
                 })
             );
 
-            mcp.resource('wp://page/current', 'Current page content', 'text/plain',
+            if (mcp && mcp.resource) mcp.resource('wp://page/current', 'Current page content', 'text/plain',
                 () => document.body.innerText.slice(0, 5000)
             );
 

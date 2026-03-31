@@ -613,7 +613,7 @@
   };
 
   if (typeof globalThis !== 'undefined') globalThis.BrowserMCP = BrowserMCP;
-  if (typeof module !== 'undefined' && module.exports) module.exports = { BrowserMCP, mcpTool: global.mcpTool };
+  if (typeof module !== 'undefined' && module.exports) module.exports = { BrowserMCP, ...(global.mcpTool ? { mcpTool: global.mcpTool } : {}) };
   if (typeof window !== 'undefined') window.BrowserMCP = BrowserMCP;
 
 })(typeof globalThis !== 'undefined' ? globalThis : typeof window !== 'undefined' ? window : this);
