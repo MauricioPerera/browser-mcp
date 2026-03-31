@@ -62,24 +62,36 @@
     td code { font-size: 0.75rem; }
 
     .footer { max-width: 900px; margin: 0 auto; padding: 20px; text-align: center; color: #64748b; font-size: 0.8rem; border-top: 1px solid #1e293b; }
+
+    /* Language toggle */
+    .lang-toggle { position: fixed; top: 16px; right: 16px; z-index: 999; display: flex; background: #1e293b; border: 1px solid #334155; border-radius: 8px; overflow: hidden; font-size: 0.8rem; }
+    .lang-btn { padding: 6px 14px; cursor: pointer; color: #94a3b8; transition: all 0.2s; border: none; background: none; font-size: 0.8rem; }
+    .lang-btn.active { background: #2563eb; color: white; }
+    .lang-btn:hover:not(.active) { background: #334155; }
   </style>
 </head>
 <body>
 
+  <!-- Language Toggle -->
+  <div class="lang-toggle">
+    <button class="lang-btn active" onclick="setLang('en')">EN</button>
+    <button class="lang-btn" onclick="setLang('es')">ES</button>
+  </div>
+
   <!-- Hero -->
   <div class="hero">
     <h1>browser-<span>mcp</span></h1>
-    <p class="tagline">Turn any webpage into an MCP server. Zero dependencies. One script tag.</p>
+    <p class="tagline" data-i18n="tagline">Turn any webpage into an MCP server. Zero dependencies. One script tag.</p>
     <div class="badges">
       <span class="badge badge-green">8 KB</span>
-      <span class="badge badge-blue">MCP Spec Compliant</span>
+      <span class="badge badge-blue" data-i18n="badge_spec">MCP Spec Compliant</span>
       <span class="badge badge-purple">Auth + Roles</span>
-      <span class="badge badge-green">Zero Deps</span>
+      <span class="badge badge-green" data-i18n="badge_deps">Zero Deps</span>
     </div>
     <div>
       <a href="https://www.npmjs.com/package/@rckflr/browser-mcp">npm</a> &nbsp;|&nbsp;
       <a href="https://github.com/MauricioPerera/browser-mcp">GitHub</a> &nbsp;|&nbsp;
-      <a href="#playground">Try It Live</a> &nbsp;|&nbsp;
+      <a href="#playground" data-i18n="nav_playground">Try It Live</a> &nbsp;|&nbsp;
       <a href="#wordpress">WordPress Plugin</a> &nbsp;|&nbsp;
       <a href="https://github.com/MauricioPerera/mcp-browser">MCP Browser</a> &nbsp;|&nbsp;
       <a href="mcp-shop-demo.html">Shop Demo</a>
@@ -96,14 +108,14 @@
 
     <!-- Install -->
     <div class="card">
-      <h2><span class="num">1</span> Install</h2>
+      <h2><span class="num">1</span> <span data-i18n="install_title">Install</span></h2>
       <pre>&lt;script src="https://cdn.jsdelivr.net/npm/@rckflr/browser-mcp@0.3.0/browser-mcp.js"&gt;&lt;/script&gt;</pre>
-      <p style="margin-top:8px;font-size:0.85rem;color:#94a3b8;">Or: <code>npm install @rckflr/browser-mcp</code></p>
+      <p style="margin-top:8px;font-size:0.85rem;color:#94a3b8;" data-i18n="install_alt">Or: <code>npm install @rckflr/browser-mcp</code></p>
     </div>
 
     <!-- Quick Start -->
     <div class="card">
-      <h2><span class="num">2</span> Register Tools</h2>
+      <h2><span class="num">2</span> <span data-i18n="register_title">Register Tools</span></h2>
       <pre><span class="keyword">const</span> mcp = <span class="keyword">new</span> <span class="fn">BrowserMCP</span>({ name: <span class="string">"My Site"</span> });
 
 <span class="comment">// Public tool — anyone can call</span>
@@ -121,7 +133,7 @@ mcp.<span class="fn">tool</span>(<span class="string">"edit_page"</span>, <span 
 
     <!-- Auth -->
     <div class="card">
-      <h2><span class="num">3</span> Add Auth (Optional)</h2>
+      <h2><span class="num">3</span> <span data-i18n="auth_title">Add Auth (Optional)</span></h2>
       <pre><span class="comment">// Simple token-based auth</span>
 <span class="keyword">const</span> TOKENS = {
   <span class="string">"secret-admin-key"</span>: { id: <span class="string">"admin"</span>, role: <span class="string">"admin"</span>, name: <span class="string">"Admin"</span> },
@@ -138,100 +150,100 @@ mcp.<span class="fn">requireAuth</span>(<span class="keyword">async</span> (toke
 
     <!-- Start -->
     <div class="card">
-      <h2><span class="num">4</span> Start</h2>
+      <h2><span class="num">4</span> <span data-i18n="start_title">Start</span></h2>
       <pre>mcp.<span class="fn">start</span>();
 <span class="comment">// Widget appears. Agents can connect. That's it.</span></pre>
     </div>
 
     <!-- mcpTool() -->
     <div class="card">
-      <h2><span class="num">5</span> mcpTool() — Universal API</h2>
-      <p style="font-size:0.85rem;color:#94a3b8;margin-bottom:12px;">Works in both standalone mode (browser-mcp.js) and <a href="https://github.com/MauricioPerera/mcp-browser">MCP Browser</a> (Tauri desktop app).</p>
+      <h2><span class="num">5</span> mcpTool() — <span data-i18n="mcptool_subtitle">Universal API</span></h2>
+      <p style="font-size:0.85rem;color:#94a3b8;margin-bottom:12px;" data-i18n="mcptool_desc">Works in both standalone mode (browser-mcp.js) and <a href="https://github.com/MauricioPerera/mcp-browser">MCP Browser</a> (Tauri desktop app).</p>
       <pre><span class="comment">// Register a tool that works in BOTH runtimes</span>
 <span class="fn">mcpTool</span>(<span class="string">"search"</span>, <span class="string">"Search products"</span>,
   { query: { type: <span class="string">"string"</span> } },
   (args) => products.filter(p => p.name.includes(args.query))
 );</pre>
-      <p style="font-size:0.8rem;color:#64748b;margin-top:8px;">In standalone mode, tools sync with BrowserMCP on start(). In MCP Browser, the bridge picks them up automatically. <a href="mcp-shop-demo.html">See shop demo →</a></p>
+      <p style="font-size:0.8rem;color:#64748b;margin-top:8px;" data-i18n="mcptool_note">In standalone mode, tools sync with BrowserMCP on start(). In MCP Browser, the bridge picks them up automatically. <a href="mcp-shop-demo.html">See shop demo →</a></p>
     </div>
 
     <!-- MCP Browser -->
     <div class="card" style="border-color:#4ade80;">
-      <h2>MCP Browser — Desktop App</h2>
-      <p style="font-size:0.85rem;color:#94a3b8;margin-bottom:8px;">A custom Tauri browser with a built-in MCP HTTP server. Any page you visit exposes tools to external AI agents via <code>POST http://localhost:PORT/mcp</code>.</p>
+      <h2>MCP Browser — <span data-i18n="browser_subtitle">Desktop App</span></h2>
+      <p style="font-size:0.85rem;color:#94a3b8;margin-bottom:8px;" data-i18n="browser_desc">A custom Tauri browser with a built-in MCP HTTP server. Any page you visit exposes tools to external AI agents via <code>POST http://localhost:PORT/mcp</code>.</p>
       <div class="features" style="margin-bottom:0;">
-        <div class="feature"><h4>Auto-inject</h4><p>MCP bridge injected into every page automatically</p></div>
-        <div class="feature"><h4>6 Auto-tools</h4><p>page_title, page_url, page_text, page_html, query_selector, navigate</p></div>
-        <div class="feature"><h4>Custom tools</h4><p>Pages register via mcpTool() — same API</p></div>
-        <div class="feature"><h4>Verified</h4><p>Tested: navigate to shop on CF Pages → 12 tools → search, cart</p></div>
+        <div class="feature"><h4 data-i18n="browser_f1_title">Auto-inject</h4><p data-i18n="browser_f1_desc">MCP bridge injected into every page automatically</p></div>
+        <div class="feature"><h4 data-i18n="browser_f2_title">6 Auto-tools</h4><p>page_title, page_url, page_text, page_html, query_selector, navigate</p></div>
+        <div class="feature"><h4 data-i18n="browser_f3_title">Custom tools</h4><p data-i18n="browser_f3_desc">Pages register via mcpTool() — same API</p></div>
+        <div class="feature"><h4 data-i18n="browser_f4_title">Verified</h4><p data-i18n="browser_f4_desc">Tested: navigate to shop on CF Pages → 12 tools → search, cart</p></div>
       </div>
       <p style="font-size:0.8rem;color:#64748b;margin-top:8px;">
-        <a href="https://github.com/MauricioPerera/mcp-browser/releases" style="color:#4ade80;font-weight:600;">⬇ Download (Windows, macOS, Linux)</a> &nbsp;|&nbsp;
+        <a href="https://github.com/MauricioPerera/mcp-browser/releases" style="color:#4ade80;font-weight:600;" data-i18n="browser_download">⬇ Download (Windows, macOS, Linux)</a> &nbsp;|&nbsp;
         <a href="https://github.com/MauricioPerera/mcp-browser">GitHub →</a>
       </p>
     </div>
 
     <!-- Features -->
     <div class="card">
-      <h2>Features</h2>
+      <h2 data-i18n="features_title">Features</h2>
       <div class="features">
-        <div class="feature"><h4>Tools</h4><p>Let agents perform actions on your site</p></div>
-        <div class="feature"><h4>Resources</h4><p>Expose data via URIs (static or template)</p></div>
-        <div class="feature"><h4>Prompts</h4><p>Pre-built templates for agent interactions</p></div>
-        <div class="feature"><h4>Auth + Roles</h4><p>Token-based auth with role restrictions</p></div>
-        <div class="feature"><h4>Session Management</h4><p>Auto-expiring sessions (1h TTL)</p></div>
-        <div class="feature"><h4>Widget</h4><p>Floating status indicator with tool list</p></div>
-        <div class="feature"><h4>BroadcastChannel</h4><p>Cross-tab communication for agents</p></div>
-        <div class="feature"><h4>WordPress Plugin</h4><p>13 tools for WP admin automation</p></div>
+        <div class="feature"><h4>Tools</h4><p data-i18n="feat_tools">Let agents perform actions on your site</p></div>
+        <div class="feature"><h4 data-i18n="feat_resources_title">Resources</h4><p data-i18n="feat_resources">Expose data via URIs (static or template)</p></div>
+        <div class="feature"><h4>Prompts</h4><p data-i18n="feat_prompts">Pre-built templates for agent interactions</p></div>
+        <div class="feature"><h4>Auth + Roles</h4><p data-i18n="feat_auth">Token-based auth with role restrictions</p></div>
+        <div class="feature"><h4 data-i18n="feat_sessions_title">Session Management</h4><p data-i18n="feat_sessions">Auto-expiring sessions (1h TTL)</p></div>
+        <div class="feature"><h4>Widget</h4><p data-i18n="feat_widget">Floating status indicator with tool list</p></div>
+        <div class="feature"><h4>BroadcastChannel</h4><p data-i18n="feat_broadcast">Cross-tab communication for agents</p></div>
+        <div class="feature"><h4>WordPress Plugin</h4><p data-i18n="feat_wp">13 tools for WP admin automation</p></div>
       </div>
     </div>
 
     <!-- API Reference -->
     <div class="card">
-      <h2>API Reference</h2>
+      <h2 data-i18n="api_title">API Reference</h2>
 
       <h3>Constructor</h3>
       <pre><span class="keyword">new</span> <span class="fn">BrowserMCP</span>({ name, version, description, widget, endpoint })</pre>
 
-      <h3>Registration</h3>
+      <h3 data-i18n="api_registration">Registration</h3>
       <table>
-        <tr><td><code>mcp.tool(name, desc, schema, handler, opts?)</code></td><td>Register a tool. opts: <code>{ public, roles }</code></td></tr>
-        <tr><td><code>mcp.resource(uri, desc, mime?, handler)</code></td><td>Expose data. URI templates: <code>"data://{id}"</code></td></tr>
-        <tr><td><code>mcp.prompt(name, desc, args, handler)</code></td><td>Prompt template</td></tr>
+        <tr><td><code>mcp.tool(name, desc, schema, handler, opts?)</code></td><td data-i18n="api_tool_desc">Register a tool. opts: <code>{ public, roles }</code></td></tr>
+        <tr><td><code>mcp.resource(uri, desc, mime?, handler)</code></td><td data-i18n="api_resource_desc">Expose data. URI templates: <code>"data://{id}"</code></td></tr>
+        <tr><td><code>mcp.prompt(name, desc, args, handler)</code></td><td data-i18n="api_prompt_desc">Prompt template</td></tr>
         <tr><td><code>mcp.requireAuth(verifier)</code></td><td><code>(token) => user | null</code></td></tr>
-        <tr><td><code>mcp.enableSampling(handler?)</code></td><td>Enable sampling. Optional custom handler, default shows modal.</td></tr>
-        <tr><td><code>mcp.createSamplingMessage(params)</code></td><td>Request completion from user/LLM. Callable from tool handlers.</td></tr>
+        <tr><td><code>mcp.enableSampling(handler?)</code></td><td data-i18n="api_sampling_desc">Enable sampling. Optional custom handler, default shows modal.</td></tr>
+        <tr><td><code>mcp.createSamplingMessage(params)</code></td><td data-i18n="api_sampling_msg">Request completion from user/LLM. Callable from tool handlers.</td></tr>
       </table>
 
-      <h3>Lifecycle</h3>
+      <h3 data-i18n="api_lifecycle">Lifecycle</h3>
       <table>
-        <tr><td><code>await mcp.start()</code></td><td>Start server, show widget</td></tr>
-        <tr><td><code>mcp.stop()</code></td><td>Stop server, remove widget</td></tr>
-        <tr><td><code>mcp.listTools()</code></td><td>Get tool names array</td></tr>
+        <tr><td><code>await mcp.start()</code></td><td data-i18n="api_start">Start server, show widget</td></tr>
+        <tr><td><code>mcp.stop()</code></td><td data-i18n="api_stop">Stop server, remove widget</td></tr>
+        <tr><td><code>mcp.listTools()</code></td><td data-i18n="api_list">Get tool names array</td></tr>
       </table>
 
-      <h3>Direct Access</h3>
+      <h3 data-i18n="api_direct">Direct Access</h3>
       <table>
-        <tr><td><code>mcp.handleRequest(jsonRpc)</code></td><td>Call MCP method directly (for testing)</td></tr>
-        <tr><td><code>window._browserMCP</code></td><td>Global reference after start()</td></tr>
+        <tr><td><code>mcp.handleRequest(jsonRpc)</code></td><td data-i18n="api_handle">Call MCP method directly (for testing)</td></tr>
+        <tr><td><code>window._browserMCP</code></td><td data-i18n="api_global">Global reference after start()</td></tr>
       </table>
 
-      <h3>Auth Flow (for agents)</h3>
+      <h3 data-i18n="api_auth_flow">Auth Flow (for agents)</h3>
       <table>
-        <tr><td>1.</td><td>Call <code>auth_login</code> with token → get session ID</td></tr>
-        <tr><td>2.</td><td>Include <code>_auth_token</code> in all tool calls</td></tr>
-        <tr><td>3.</td><td>Sessions expire after 1 hour</td></tr>
+        <tr><td>1.</td><td data-i18n="api_auth_1">Call <code>auth_login</code> with token → get session ID</td></tr>
+        <tr><td>2.</td><td data-i18n="api_auth_2">Include <code>_auth_token</code> in all tool calls</td></tr>
+        <tr><td>3.</td><td data-i18n="api_auth_3">Sessions expire after 1 hour</td></tr>
       </table>
     </div>
 
     <!-- Playground -->
     <div class="card" id="playground">
-      <h2>Live Playground</h2>
-      <p style="font-size:0.85rem;color:#94a3b8;margin-bottom:12px;">This page is running a BrowserMCP server right now. Try calling tools:</p>
+      <h2 data-i18n="playground_title">Live Playground</h2>
+      <p style="font-size:0.85rem;color:#94a3b8;margin-bottom:12px;" data-i18n="playground_desc">This page is running a BrowserMCP server right now. Try calling tools:</p>
 
       <div class="playground">
         <div>
-          <label style="font-size:0.8rem;color:#94a3b8;">Tool name</label>
+          <label style="font-size:0.8rem;color:#94a3b8;" data-i18n="playground_tool">Tool name</label>
           <select id="test-tool" onchange="fillArgs()">
             <option value="get_time">get_time (public)</option>
             <option value="greet" selected>greet (public)</option>
@@ -247,52 +259,52 @@ mcp.<span class="fn">requireAuth</span>(<span class="keyword">async</span> (toke
           </select>
         </div>
         <div>
-          <label style="font-size:0.8rem;color:#94a3b8;">Arguments (JSON)</label>
+          <label style="font-size:0.8rem;color:#94a3b8;" data-i18n="playground_args">Arguments (JSON)</label>
           <input id="test-args" value='{"name": "World"}'>
         </div>
       </div>
       <div style="display:flex;gap:8px;margin-top:8px;">
-        <button onclick="testCall()">Call Tool</button>
-        <button class="secondary" onclick="testLogin()">Login as Admin</button>
-        <button class="secondary" onclick="testList()">List Tools</button>
-        <button class="secondary" onclick="testSampling()">Test Sampling</button>
+        <button onclick="testCall()" data-i18n="btn_call">Call Tool</button>
+        <button class="secondary" onclick="testLogin()" data-i18n="btn_login">Login as Admin</button>
+        <button class="secondary" onclick="testList()" data-i18n="btn_list">List Tools</button>
+        <button class="secondary" onclick="testSampling()" data-i18n="btn_sampling">Test Sampling</button>
       </div>
-      <div class="result" id="result">Click a button to see results...</div>
+      <div class="result" id="result" data-i18n="playground_result">Click a button to see results...</div>
     </div>
 
     <!-- WordPress -->
     <div class="card" id="wordpress">
       <h2>WordPress Plugin</h2>
-      <p style="font-size:0.85rem;color:#94a3b8;margin-bottom:12px;">Drop the plugin into <code>wp-content/plugins/browser-mcp/</code> and activate. 13 tools auto-registered:</p>
+      <p style="font-size:0.85rem;color:#94a3b8;margin-bottom:12px;" data-i18n="wp_desc">Drop the plugin into <code>wp-content/plugins/browser-mcp/</code> and activate. 13 tools auto-registered:</p>
       <table>
-        <thead><tr><th>Tool</th><th>Roles</th><th>Action</th></tr></thead>
+        <thead><tr><th>Tool</th><th data-i18n="wp_roles">Roles</th><th data-i18n="wp_action">Action</th></tr></thead>
         <tbody>
-          <tr><td><code>wp_site_info</code></td><td>public</td><td>Site metadata</td></tr>
-          <tr><td><code>wp_search</code></td><td>public</td><td>Search posts/pages</td></tr>
-          <tr><td><code>wp_list_posts</code></td><td>auth</td><td>List posts</td></tr>
-          <tr><td><code>wp_create_post</code></td><td>editor+</td><td>Create post</td></tr>
-          <tr><td><code>wp_update_post</code></td><td>editor+</td><td>Edit post</td></tr>
-          <tr><td><code>wp_delete_post</code></td><td>editor+</td><td>Delete post</td></tr>
-          <tr><td><code>wp_list_users</code></td><td>admin</td><td>List users</td></tr>
-          <tr><td><code>wp_get_settings</code></td><td>admin</td><td>WP settings</td></tr>
-          <tr><td><code>wp_list_plugins</code></td><td>admin</td><td>Installed plugins</td></tr>
+          <tr><td><code>wp_site_info</code></td><td>public</td><td data-i18n="wp_site_info">Site metadata</td></tr>
+          <tr><td><code>wp_search</code></td><td>public</td><td data-i18n="wp_search">Search posts/pages</td></tr>
+          <tr><td><code>wp_list_posts</code></td><td>auth</td><td data-i18n="wp_list_posts">List posts</td></tr>
+          <tr><td><code>wp_create_post</code></td><td>editor+</td><td data-i18n="wp_create_post">Create post</td></tr>
+          <tr><td><code>wp_update_post</code></td><td>editor+</td><td data-i18n="wp_update_post">Edit post</td></tr>
+          <tr><td><code>wp_delete_post</code></td><td>editor+</td><td data-i18n="wp_delete_post">Delete post</td></tr>
+          <tr><td><code>wp_list_users</code></td><td>admin</td><td data-i18n="wp_list_users">List users</td></tr>
+          <tr><td><code>wp_get_settings</code></td><td>admin</td><td data-i18n="wp_get_settings">WP settings</td></tr>
+          <tr><td><code>wp_list_plugins</code></td><td>admin</td><td data-i18n="wp_list_plugins">Installed plugins</td></tr>
         </tbody>
       </table>
       <p style="margin-top:12px;font-size:0.8rem;color:#64748b;">
-        <a href="https://github.com/MauricioPerera/browser-mcp/tree/master/wordpress-plugin">View plugin source on GitHub</a>
+        <a href="https://github.com/MauricioPerera/browser-mcp/tree/master/wordpress-plugin" data-i18n="wp_source">View plugin source on GitHub</a>
       </p>
     </div>
 
     <!-- Use Cases -->
     <div class="card">
-      <h2>Use Cases</h2>
+      <h2 data-i18n="usecases_title">Use Cases</h2>
       <div class="features">
-        <div class="feature"><h4>E-commerce</h4><p>Agents search products, check inventory, add to cart</p></div>
-        <div class="feature"><h4>CMS / WordPress</h4><p>Create posts, manage content, moderate comments</p></div>
-        <div class="feature"><h4>Dashboards</h4><p>Expose metrics and KPIs to AI analysis</p></div>
-        <div class="feature"><h4>Documentation</h4><p>Make docs searchable and navigable by agents</p></div>
-        <div class="feature"><h4>Internal Tools</h4><p>AI-automate any web app your team uses</p></div>
-        <div class="feature"><h4>Prototyping</h4><p>Quickly expose any page for agent testing</p></div>
+        <div class="feature"><h4>E-commerce</h4><p data-i18n="uc_ecommerce">Agents search products, check inventory, add to cart</p></div>
+        <div class="feature"><h4>CMS / WordPress</h4><p data-i18n="uc_cms">Create posts, manage content, moderate comments</p></div>
+        <div class="feature"><h4>Dashboards</h4><p data-i18n="uc_dashboards">Expose metrics and KPIs to AI analysis</p></div>
+        <div class="feature"><h4 data-i18n="uc_docs_title">Documentation</h4><p data-i18n="uc_docs">Make docs searchable and navigable by agents</p></div>
+        <div class="feature"><h4 data-i18n="uc_internal_title">Internal Tools</h4><p data-i18n="uc_internal">AI-automate any web app your team uses</p></div>
+        <div class="feature"><h4 data-i18n="uc_proto_title">Prototyping</h4><p data-i18n="uc_proto">Quickly expose any page for agent testing</p></div>
       </div>
     </div>
   </div>
@@ -306,6 +318,120 @@ mcp.<span class="fn">requireAuth</span>(<span class="keyword">async</span> (toke
   <script src="browser-mcp.js"></script>
   <script src="plugins/debug.js"></script>
   <script>
+    // ── i18n ──
+    const i18n = {
+      es: {
+        tagline: "Convierte cualquier web en un servidor MCP. Sin dependencias. Una etiqueta de script.",
+        badge_spec: "Compatible con MCP Spec",
+        badge_deps: "Sin dependencias",
+        nav_playground: "Probar en vivo",
+        install_title: "Instalar",
+        install_alt: "O: <code>npm install @rckflr/browser-mcp</code>",
+        register_title: "Registrar Tools",
+        auth_title: "Agregar Auth (Opcional)",
+        start_title: "Iniciar",
+        mcptool_subtitle: "API Universal",
+        mcptool_desc: 'Funciona en modo standalone (browser-mcp.js) y en <a href="https://github.com/MauricioPerera/mcp-browser">MCP Browser</a> (app Tauri de escritorio).',
+        mcptool_note: 'En modo standalone, las tools se sincronizan con BrowserMCP al llamar start(). En MCP Browser, el bridge las detecta automaticamente. <a href="mcp-shop-demo.html">Ver demo de tienda →</a>',
+        browser_subtitle: "App de Escritorio",
+        browser_desc: 'Un navegador Tauri con servidor HTTP MCP integrado. Cualquier pagina que visites expone tools a agentes de IA externos via <code>POST http://localhost:PORT/mcp</code>.',
+        browser_f1_title: "Auto-inyeccion",
+        browser_f1_desc: "El bridge MCP se inyecta en cada pagina automaticamente",
+        browser_f2_title: "6 Auto-tools",
+        browser_f3_title: "Tools custom",
+        browser_f3_desc: "Las paginas registran via mcpTool() — misma API",
+        browser_f4_title: "Verificado",
+        browser_f4_desc: "Probado: navegar a tienda en CF Pages → 12 tools → buscar, carrito",
+        browser_download: "⬇ Descargar (Windows, macOS, Linux)",
+        features_title: "Caracteristicas",
+        feat_tools: "Permite a los agentes ejecutar acciones en tu sitio",
+        feat_resources_title: "Recursos",
+        feat_resources: "Expone datos via URIs (estaticos o template)",
+        feat_prompts: "Plantillas predefinidas para interacciones con agentes",
+        feat_auth: "Autenticacion con tokens y restriccion por roles",
+        feat_sessions_title: "Gestion de Sesiones",
+        feat_sessions: "Sesiones con expiracion automatica (1h TTL)",
+        feat_widget: "Indicador flotante de estado con lista de tools",
+        feat_broadcast: "Comunicacion entre pestanas para agentes",
+        feat_wp: "13 tools para automatizar admin de WP",
+        api_title: "Referencia de API",
+        api_registration: "Registro",
+        api_tool_desc: 'Registrar tool. opts: <code>{ public, roles }</code>',
+        api_resource_desc: 'Exponer datos. URI templates: <code>"data://{id}"</code>',
+        api_prompt_desc: "Plantilla de prompt",
+        api_sampling_desc: "Habilitar sampling. Handler custom opcional, por defecto muestra modal.",
+        api_sampling_msg: "Solicitar completado al usuario/LLM. Llamable desde handlers de tools.",
+        api_lifecycle: "Ciclo de vida",
+        api_start: "Iniciar servidor, mostrar widget",
+        api_stop: "Detener servidor, remover widget",
+        api_list: "Obtener array de nombres de tools",
+        api_direct: "Acceso Directo",
+        api_handle: "Llamar metodo MCP directamente (para testing)",
+        api_global: "Referencia global despues de start()",
+        api_auth_flow: "Flujo de Auth (para agentes)",
+        api_auth_1: 'Llamar <code>auth_login</code> con token → obtener session ID',
+        api_auth_2: 'Incluir <code>_auth_token</code> en todas las llamadas a tools',
+        api_auth_3: "Las sesiones expiran despues de 1 hora",
+        playground_title: "Playground en Vivo",
+        playground_desc: "Esta pagina esta ejecutando un servidor BrowserMCP ahora mismo. Prueba llamando tools:",
+        playground_tool: "Nombre de tool",
+        playground_args: "Argumentos (JSON)",
+        btn_call: "Llamar Tool",
+        btn_login: "Login como Admin",
+        btn_list: "Listar Tools",
+        btn_sampling: "Probar Sampling",
+        playground_result: "Haz clic en un boton para ver resultados...",
+        wp_desc: 'Coloca el plugin en <code>wp-content/plugins/browser-mcp/</code> y activa. 13 tools auto-registradas:',
+        wp_roles: "Roles",
+        wp_action: "Accion",
+        wp_site_info: "Metadatos del sitio",
+        wp_search: "Buscar posts/paginas",
+        wp_list_posts: "Listar posts",
+        wp_create_post: "Crear post",
+        wp_update_post: "Editar post",
+        wp_delete_post: "Eliminar post",
+        wp_list_users: "Listar usuarios",
+        wp_get_settings: "Configuracion de WP",
+        wp_list_plugins: "Plugins instalados",
+        wp_source: "Ver codigo del plugin en GitHub",
+        usecases_title: "Casos de Uso",
+        uc_ecommerce: "Agentes buscan productos, consultan inventario, agregan al carrito",
+        uc_cms: "Crear posts, gestionar contenido, moderar comentarios",
+        uc_dashboards: "Exponer metricas y KPIs al analisis de IA",
+        uc_docs_title: "Documentacion",
+        uc_docs: "Haz que tu documentacion sea buscable y navegable por agentes",
+        uc_internal_title: "Herramientas Internas",
+        uc_internal: "Automatiza con IA cualquier app web que use tu equipo",
+        uc_proto_title: "Prototipado",
+        uc_proto: "Expone rapidamente cualquier pagina para pruebas con agentes",
+        status_running: "Servidor MCP activo",
+        status_tools: "tools registradas",
+      }
+    };
+
+    let currentLang = 'en';
+    const originals = {};
+
+    function setLang(lang) {
+      currentLang = lang;
+      document.querySelectorAll('.lang-btn').forEach(b => b.classList.toggle('active', b.textContent === lang.toUpperCase()));
+      document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        if (!originals[key]) originals[key] = el.innerHTML;
+        el.innerHTML = lang === 'es' && i18n.es[key] ? i18n.es[key] : originals[key];
+      });
+      // Update dynamic status bar
+      const statusEl = document.querySelector('#status span:not(.status-dot)');
+      if (statusEl && typeof mcp !== 'undefined' && mcp.listTools) {
+        const count = mcp.listTools().length;
+        statusEl.textContent = lang === 'es'
+          ? `${i18n.es.status_running} — ${count} ${i18n.es.status_tools}`
+          : `MCP server running — ${count} tools registered`;
+      }
+      document.documentElement.lang = lang;
+    }
+
+    // ── MCP Server ──
     const USERS = {
       "admin-key-123": { id: "admin", role: "admin", name: "Admin" },
       "editor-key-456": { id: "editor", role: "editor", name: "Editor" },
