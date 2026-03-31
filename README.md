@@ -2,17 +2,24 @@
 
 Turn any webpage into an MCP server. Zero dependencies. One script tag.
 
-**Demo:** [browser-mcp.pages.dev](https://browser-mcp.pages.dev) | **Tests:** [browser-mcp.pages.dev/test.html](https://browser-mcp.pages.dev/test.html)
+**Demo:** [browser-mcp.pages.dev](https://browser-mcp.pages.dev) | **Tests:** [browser-mcp.pages.dev/test.html](https://browser-mcp.pages.dev/test.html) (76 tests) | **Shop Demo:** [mcp-shop-demo.html](https://browser-mcp.pages.dev/mcp-shop-demo.html)
 
 ## What it does
 
 Add one script to any page and AI agents (Claude, Gemini, etc.) can interact with it via the [Model Context Protocol](https://modelcontextprotocol.io). Full spec coverage: Tools, Resources, Prompts, and Sampling.
 
+Works in two runtimes:
+
+- **Standalone** -- load `browser-mcp.js`, create a `BrowserMCP` instance, call `.start()`. Communication happens over `BroadcastChannel`.
+- **[MCP Browser](https://github.com/MauricioPerera/mcp-browser)** -- the companion desktop app that bridges any webpage to MCP clients like Claude Desktop. Pages only need `mcpTool()` calls; no extra script tag required.
+
+The `mcpTool()` global API is the universal way to register tools. It works identically in both runtimes.
+
 ```html
-<script src="https://cdn.jsdelivr.net/npm/@rckflr/browser-mcp@0.4.0/browser-mcp.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@rckflr/browser-mcp@0.5.0/browser-mcp.js"></script>
 <script>
   const mcp = new BrowserMCP({ name: "My Site" });
-  mcp.tool("search", "Search this page", { query: "string" },
+  mcp.tool("search", "Search this page", { query: { type: "string" } },
     ({ query }) => document.body.innerText.includes(query) ? "Found" : "Not found"
   );
   mcp.start();
@@ -29,16 +36,18 @@ Add one script to any page and AI agents (Claude, Gemini, etc.) can interact wit
 | **Sampling** | Page requests completions from user/LLM (human-in-the-loop modal) |
 | **Auth + Roles** | Token-based auth with role restrictions (admin, editor, etc.) |
 | **Sessions** | Auto-expiring sessions (1h TTL, cleanup every 5min) |
-| **BroadcastChannel** | Cross-tab communication for agents |
+| **mcpTool() Global API** | Universal tool registration that works in standalone and MCP Browser |
+| **MCP Browser Compatibility** | Pages work inside [MCP Browser](https://github.com/MauricioPerera/mcp-browser) with zero changes |
 | **Debug Plugin** | 12 pre-built debug tools (errors, network, DOM, performance) |
 | **WordPress Plugin** | 13 tools for WP admin automation |
+| **BroadcastChannel** | Cross-tab communication for agents |
 | **Widget** | Floating status indicator with tool list |
 
 ## Install
 
 ```html
 <!-- CDN -->
-<script src="https://cdn.jsdelivr.net/npm/@rckflr/browser-mcp@0.4.0/browser-mcp.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@rckflr/browser-mcp@0.5.0/browser-mcp.js"></script>
 ```
 
 ```bash
@@ -46,12 +55,59 @@ Add one script to any page and AI agents (Claude, Gemini, etc.) can interact wit
 npm install @rckflr/browser-mcp
 ```
 
-## API
+## mcpTool() -- The Universal API
+
+`mcpTool()` is a global function that registers MCP tools in both runtimes. You write tool definitions once and they work whether the page is running standalone with `browser-mcp.js` or inside [MCP Browser](https://github.com/MauricioPerera/mcp-browser).
+
+```javascript
+mcpTool(name, description, schema, handler)
+```
+
+### How it works
+
+**Standalone (browser-mcp.js loaded):** `mcpTool()` pushes tools into the global `__MCP_TOOLS__` / `__MCP_HANDLERS__` registries. When `BrowserMCP.start()` is called, it syncs those tools into the instance. If the instance is already running, tools are registered immediately.
+
+**MCP Browser:** The bridge script injects its own `mcpTool()` before the page scripts run. Tools registered via `mcpTool()` are picked up by the bridge and exposed to MCP clients like Claude Desktop.
+
+### Example: Shop Demo
+
+The [shop demo](https://browser-mcp.pages.dev/mcp-shop-demo.html) uses only `mcpTool()` calls and works in both runtimes without any code changes:
+
+```javascript
+// Wait for mcpTool to be available (either runtime)
+function whenMcpReady(cb) {
+  if (typeof mcpTool === 'function') return cb();
+  const s = document.createElement('script');
+  s.src = 'https://cdn.jsdelivr.net/npm/@rckflr/browser-mcp@0.5.0/browser-mcp.js';
+  s.onload = () => { new BrowserMCP({ name: 'Shop' }).start(); cb(); };
+  document.head.appendChild(s);
+}
+
+whenMcpReady(() => {
+  mcpTool('shop_search', 'Search products by name or category',
+    { query: { type: 'string' } },
+    ({ query }) => products.filter(p =>
+      p.name.toLowerCase().includes(query.toLowerCase())
+    )
+  );
+
+  mcpTool('shop_add_to_cart', 'Add product to cart',
+    { productId: { type: 'number' }, quantity: { type: 'number' } },
+    ({ productId, quantity }) => { /* add to cart logic */ }
+  );
+});
+```
+
+## API Reference
 
 ### Tools
 
 ```javascript
+// Using BrowserMCP instance
 mcp.tool("name", "description", { arg: "type" }, handler, options?)
+
+// Using mcpTool() global (works in both runtimes)
+mcpTool("name", "description", { arg: { type: "string" } }, handler)
 
 // Public tool
 mcp.tool("ping", "Health check", {}, () => "pong", { public: true });
@@ -115,7 +171,7 @@ mcp.requireAuth(async (token) => {
 ```
 
 Auth flow for agents:
-1. Call `auth_login` tool with token → get session ID
+1. Call `auth_login` tool with token -- get session ID
 2. Include `_auth_token` in all subsequent tool calls
 3. Sessions auto-expire after 1 hour
 
@@ -148,11 +204,13 @@ Auth flow for agents:
 | `debug_viewport` | Viewport, scroll, device info |
 | `debug_clear` | Reset all captured data |
 
-Resource: `debug://snapshot` — full debug state in one call.
+Resource: `debug://snapshot` -- full debug state in one call.
+
+The debug plugin also supports `mcpTool()` registration for MCP Browser compatibility.
 
 ## WordPress Plugin
 
-Drop `wordpress-plugin/` into `wp-content/plugins/browser-mcp/` and activate. 13 tools auto-registered:
+Drop `wordpress-plugin/` into `wp-content/plugins/browser-mcp/` and activate. 13 tools auto-registered. Uses `mcpTool()` when running inside MCP Browser, falls back to `mcp.tool()` in standalone mode.
 
 | Tool | Roles | Action |
 |------|-------|--------|
@@ -193,26 +251,29 @@ Live: [browser-mcp.pages.dev/test.html](https://browser-mcp.pages.dev/test.html)
 
 ## Use Cases
 
-- **E-commerce** — Agents search products, check inventory, add to cart
-- **CMS / WordPress** — Create posts, manage content
-- **Dashboards** — Expose metrics to AI analysis
-- **Debugging** — Errors, DOM, network, performance — all via tools
-- **Documentation** — Make docs searchable by agents
-- **Internal tools** — AI-automate any web app
+- **E-commerce** -- Agents search products, check inventory, add to cart ([shop demo](https://browser-mcp.pages.dev/mcp-shop-demo.html))
+- **CMS / WordPress** -- Create posts, manage content via AI
+- **Dashboards** -- Expose metrics to AI analysis
+- **Debugging** -- Errors, DOM, network, performance via tools
+- **Documentation** -- Make docs searchable by agents
+- **Internal tools** -- AI-automate any web app
+- **MCP Browser pages** -- Register tools with `mcpTool()` for Claude Desktop
 
 ## Comparison with WebMCP
 
 | | browser-mcp | WebMCP |
 |---|---|---|
-| Tools | ✅ | ✅ |
-| Resources | ✅ | ✅ |
-| Prompts | ✅ | ✅ |
-| Sampling | ✅ | ✅ |
-| Auth + Roles | ✅ | ❌ |
-| Sessions (TTL) | ✅ | ❌ |
-| Debug Plugin | ✅ | ❌ |
-| WordPress Plugin | ✅ | ❌ |
-| BroadcastChannel | ✅ | ❌ |
+| Tools | Yes | Yes |
+| Resources | Yes | Yes |
+| Prompts | Yes | Yes |
+| Sampling | Yes | Yes |
+| Auth + Roles | Yes | No |
+| Sessions (TTL) | Yes | No |
+| mcpTool() Global API | Yes | No |
+| MCP Browser Support | Yes | No |
+| Debug Plugin | Yes | No |
+| WordPress Plugin | Yes | No |
+| BroadcastChannel | Yes | No |
 
 ## License
 

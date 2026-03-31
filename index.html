@@ -80,7 +80,9 @@
       <a href="https://www.npmjs.com/package/@rckflr/browser-mcp">npm</a> &nbsp;|&nbsp;
       <a href="https://github.com/MauricioPerera/browser-mcp">GitHub</a> &nbsp;|&nbsp;
       <a href="#playground">Try It Live</a> &nbsp;|&nbsp;
-      <a href="#wordpress">WordPress Plugin</a>
+      <a href="#wordpress">WordPress Plugin</a> &nbsp;|&nbsp;
+      <a href="https://github.com/MauricioPerera/mcp-browser">MCP Browser</a> &nbsp;|&nbsp;
+      <a href="mcp-shop-demo.html">Shop Demo</a>
     </div>
   </div>
 
@@ -139,6 +141,31 @@ mcp.<span class="fn">requireAuth</span>(<span class="keyword">async</span> (toke
       <h2><span class="num">4</span> Start</h2>
       <pre>mcp.<span class="fn">start</span>();
 <span class="comment">// Widget appears. Agents can connect. That's it.</span></pre>
+    </div>
+
+    <!-- mcpTool() -->
+    <div class="card">
+      <h2><span class="num">5</span> mcpTool() — Universal API</h2>
+      <p style="font-size:0.85rem;color:#94a3b8;margin-bottom:12px;">Works in both standalone mode (browser-mcp.js) and <a href="https://github.com/MauricioPerera/mcp-browser">MCP Browser</a> (Tauri desktop app).</p>
+      <pre><span class="comment">// Register a tool that works in BOTH runtimes</span>
+<span class="fn">mcpTool</span>(<span class="string">"search"</span>, <span class="string">"Search products"</span>,
+  { query: { type: <span class="string">"string"</span> } },
+  (args) => products.filter(p => p.name.includes(args.query))
+);</pre>
+      <p style="font-size:0.8rem;color:#64748b;margin-top:8px;">In standalone mode, tools sync with BrowserMCP on start(). In MCP Browser, the bridge picks them up automatically. <a href="mcp-shop-demo.html">See shop demo →</a></p>
+    </div>
+
+    <!-- MCP Browser -->
+    <div class="card" style="border-color:#4ade80;">
+      <h2>MCP Browser — Desktop App</h2>
+      <p style="font-size:0.85rem;color:#94a3b8;margin-bottom:8px;">A custom Tauri browser with a built-in MCP HTTP server. Any page you visit exposes tools to external AI agents via <code>POST http://localhost:PORT/mcp</code>.</p>
+      <div class="features" style="margin-bottom:0;">
+        <div class="feature"><h4>Auto-inject</h4><p>MCP bridge injected into every page automatically</p></div>
+        <div class="feature"><h4>6 Auto-tools</h4><p>page_title, page_url, page_text, page_html, query_selector, navigate</p></div>
+        <div class="feature"><h4>Custom tools</h4><p>Pages register via mcpTool() — same API</p></div>
+        <div class="feature"><h4>Verified</h4><p>Tested: navigate to shop on CF Pages → 12 tools → search, cart</p></div>
+      </div>
+      <p style="font-size:0.8rem;color:#64748b;margin-top:8px;"><a href="https://github.com/MauricioPerera/mcp-browser">GitHub: MauricioPerera/mcp-browser →</a></p>
     </div>
 
     <!-- Features -->
