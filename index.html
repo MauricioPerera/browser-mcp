@@ -91,7 +91,10 @@
     <div>
       <a href="https://www.npmjs.com/package/@rckflr/browser-mcp">npm</a> &nbsp;|&nbsp;
       <a href="https://github.com/MauricioPerera/browser-mcp">GitHub</a> &nbsp;|&nbsp;
+      <a href="#connect" data-i18n="nav_connect">Connect</a> &nbsp;|&nbsp;
       <a href="#playground" data-i18n="nav_playground">Try It Live</a> &nbsp;|&nbsp;
+      <a href="#prompts" data-i18n="nav_prompts">Prompts</a> &nbsp;|&nbsp;
+      <a href="#resources" data-i18n="nav_resources">Resources</a> &nbsp;|&nbsp;
       <a href="#wordpress">WordPress Plugin</a> &nbsp;|&nbsp;
       <a href="https://github.com/MauricioPerera/mcp-browser">MCP Browser</a> &nbsp;|&nbsp;
       <a href="mcp-shop-demo.html">Shop Demo</a>
@@ -183,6 +186,44 @@ mcp.<span class="fn">requireAuth</span>(<span class="keyword">async</span> (toke
       </p>
     </div>
 
+    <!-- Connect Your Agent -->
+    <div class="card" style="border-color:#2563eb;" id="connect">
+      <h2 data-i18n="connect_title">Connect Your Agent</h2>
+      <p style="font-size:0.85rem;color:#94a3b8;margin-bottom:12px;" data-i18n="connect_desc">Two ways to connect an AI agent to a site running browser-mcp:</p>
+
+      <h3 data-i18n="connect_option_a">Option A — MCP Browser (recommended)</h3>
+      <p style="font-size:0.85rem;color:#94a3b8;margin-bottom:8px;" data-i18n="connect_a_desc">Download MCP Browser, open any site, and point your agent to the HTTP server:</p>
+      <pre><span class="comment"># 1. Download and launch MCP Browser</span>
+<span class="comment"># 2. Navigate to any site (e.g. browser-mcp.automators.work/mcp-shop-demo.html)</span>
+<span class="comment"># 3. Connect your agent:</span>
+
+<span class="comment"># Claude Code</span>
+claude mcp add mcp-browser --transport http --url http://127.0.0.1:4567/mcp
+
+<span class="comment"># Claude Desktop (claude_desktop_config.json)</span>
+{
+  <span class="string">"mcpServers"</span>: {
+    <span class="string">"mcp-browser"</span>: {
+      <span class="string">"url"</span>: <span class="string">"http://127.0.0.1:4567/mcp"</span>
+    }
+  }
+}
+
+<span class="comment"># Any agent — just POST</span>
+curl -X POST http://127.0.0.1:4567/mcp \
+  -H <span class="string">"Content-Type: application/json"</span> \
+  -d <span class="string">'{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'</span></pre>
+
+      <h3 data-i18n="connect_option_b">Option B — BroadcastChannel (same browser)</h3>
+      <p style="font-size:0.85rem;color:#94a3b8;margin-bottom:8px;" data-i18n="connect_b_desc">For agents running in the same browser, connect via BroadcastChannel:</p>
+      <pre><span class="keyword">const</span> channel = <span class="keyword">new</span> <span class="fn">BroadcastChannel</span>(<span class="string">"browser-mcp"</span>);
+channel.<span class="fn">postMessage</span>({
+  jsonrpc: <span class="string">"2.0"</span>, id: 1,
+  method: <span class="string">"tools/list"</span>, params: {}
+});
+channel.<span class="fn">onmessage</span> = (e) => console.log(e.data);</pre>
+    </div>
+
     <!-- Features -->
     <div class="card">
       <h2 data-i18n="features_title">Features</h2>
@@ -196,6 +237,90 @@ mcp.<span class="fn">requireAuth</span>(<span class="keyword">async</span> (toke
         <div class="feature"><h4>BroadcastChannel</h4><p data-i18n="feat_broadcast">Cross-tab communication for agents</p></div>
         <div class="feature"><h4>WordPress Plugin</h4><p data-i18n="feat_wp">13 tools for WP admin automation</p></div>
       </div>
+    </div>
+
+    <!-- Prompts -->
+    <div class="card" id="prompts">
+      <h2 data-i18n="prompts_title">Prompts</h2>
+      <p style="font-size:0.85rem;color:#94a3b8;margin-bottom:12px;" data-i18n="prompts_desc">Prompts are pre-built templates that agents can discover and use to structure their interactions with your site. Define them once, and any connected agent can list and invoke them.</p>
+      <pre><span class="comment">// Summarize page content with a focus area</span>
+mcp.<span class="fn">prompt</span>(<span class="string">"summarize"</span>, <span class="string">"Summarize this page"</span>,
+  [{ name: <span class="string">"focus"</span>, description: <span class="string">"What to focus on"</span> }],
+  ({ focus }) => <span class="string">`Summarize this page, focusing on ${focus}. Content: ${document.body.innerText.slice(0, 3000)}`</span>
+);
+
+<span class="comment">// Generate a code review prompt</span>
+mcp.<span class="fn">prompt</span>(<span class="string">"code_review"</span>, <span class="string">"Review code on this page"</span>,
+  [{ name: <span class="string">"language"</span>, description: <span class="string">"Programming language"</span> }],
+  ({ language }) => <span class="string">`Review the ${language} code on this page for bugs, security issues, and improvements.`</span>
+);
+
+<span class="comment">// Translate page content</span>
+mcp.<span class="fn">prompt</span>(<span class="string">"translate"</span>, <span class="string">"Translate page content"</span>,
+  [{ name: <span class="string">"target_lang"</span>, description: <span class="string">"Target language"</span> }],
+  ({ target_lang }) => <span class="string">`Translate the following to ${target_lang}: ${document.body.innerText.slice(0, 2000)}`</span>
+);</pre>
+      <p style="font-size:0.8rem;color:#64748b;margin-top:8px;" data-i18n="prompts_note">Agents discover prompts via <code>prompts/list</code> and invoke them with <code>prompts/get</code>. Arguments are passed as key-value pairs.</p>
+    </div>
+
+    <!-- Resources -->
+    <div class="card" id="resources">
+      <h2 data-i18n="resources_title">Resources</h2>
+      <p style="font-size:0.85rem;color:#94a3b8;margin-bottom:12px;" data-i18n="resources_desc">Resources expose data from your site via URIs that agents can read. They can be static (fixed URI) or dynamic (URI templates with parameters).</p>
+      <pre><span class="comment">// Static resource — fixed URI</span>
+mcp.<span class="fn">resource</span>(<span class="string">"page://title"</span>, <span class="string">"Page title"</span>, <span class="string">"text/plain"</span>,
+  () => document.title
+);
+
+mcp.<span class="fn">resource</span>(<span class="string">"page://content"</span>, <span class="string">"Full page text"</span>, <span class="string">"text/plain"</span>,
+  () => document.body.innerText.slice(0, 5000)
+);
+
+<span class="comment">// Dynamic resource — URI template with parameter</span>
+mcp.<span class="fn">resource</span>(<span class="string">"page://meta/{name}"</span>, <span class="string">"Get meta tag value"</span>, <span class="string">"text/plain"</span>,
+  ({ name }) => {
+    <span class="keyword">const</span> meta = document.querySelector(<span class="string">`meta[name="${name}"]`</span>);
+    <span class="keyword">return</span> meta ? meta.content : <span class="string">"Not found"</span>;
+  }
+);
+
+<span class="comment">// JSON resource</span>
+mcp.<span class="fn">resource</span>(<span class="string">"page://links"</span>, <span class="string">"All links on this page"</span>, <span class="string">"application/json"</span>,
+  () => JSON.stringify([...document.querySelectorAll(<span class="string">'a[href]'</span>)].map(a => ({
+    text: a.textContent.trim(), href: a.href
+  })))
+);</pre>
+      <p style="font-size:0.8rem;color:#64748b;margin-top:8px;" data-i18n="resources_note">Agents discover resources via <code>resources/list</code> and read them with <code>resources/read</code>. URI templates (with <code>{param}</code>) appear in <code>resources/templates/list</code>.</p>
+    </div>
+
+    <!-- Sampling -->
+    <div class="card" id="sampling">
+      <h2>Sampling</h2>
+      <p style="font-size:0.85rem;color:#94a3b8;margin-bottom:12px;" data-i18n="sampling_desc">Sampling lets your tools request LLM completions through the connected agent. The user sees a modal to approve or edit the response (human-in-the-loop).</p>
+      <pre><span class="comment">// Enable sampling (shows approval modal by default)</span>
+mcp.<span class="fn">enableSampling</span>();
+
+<span class="comment">// Use sampling inside a tool handler</span>
+mcp.<span class="fn">tool</span>(<span class="string">"ask_ai"</span>, <span class="string">"Ask AI a question about this page"</span>,
+  { question: <span class="string">"string"</span> },
+  <span class="keyword">async</span> ({ question }) => {
+    <span class="keyword">const</span> result = <span class="keyword">await</span> mcp.<span class="fn">createSamplingMessage</span>({
+      messages: [{
+        role: <span class="string">"user"</span>,
+        content: { type: <span class="string">"text"</span>, text: question }
+      }],
+      systemPrompt: <span class="string">"You are a helpful assistant. Use the page context to answer."</span>,
+      maxTokens: 200
+    });
+    <span class="keyword">return</span> result.content.text;
+  },
+  { public: <span class="keyword">true</span> }
+);</pre>
+      <div style="margin-top:12px;padding:12px;background:#0f172a;border:1px solid #1e293b;border-radius:8px;">
+        <p style="font-size:0.8rem;color:#94a3b8;margin-bottom:8px;" data-i18n="sampling_flow_title"><strong style="color:#e2e8f0;">Flow:</strong></p>
+        <p style="font-size:0.8rem;color:#64748b;font-family:monospace;" data-i18n="sampling_flow">Agent calls tool → tool calls createSamplingMessage() → modal appears in browser → user types/approves response → result returned to tool → tool returns to agent</p>
+      </div>
+      <p style="font-size:0.8rem;color:#64748b;margin-top:8px;" data-i18n="sampling_note">You can also provide a custom handler to <code>enableSampling(fn)</code> to skip the modal and handle sampling programmatically.</p>
     </div>
 
     <!-- API Reference -->
@@ -404,6 +529,29 @@ mcp.<span class="fn">requireAuth</span>(<span class="keyword">async</span> (toke
         uc_internal: "Automatiza con IA cualquier app web que use tu equipo",
         uc_proto_title: "Prototipado",
         uc_proto: "Expone rapidamente cualquier pagina para pruebas con agentes",
+        // Connect
+        nav_connect: "Conectar",
+        nav_prompts: "Prompts",
+        nav_resources: "Recursos",
+        connect_title: "Conecta tu Agente",
+        connect_desc: "Dos formas de conectar un agente de IA a un sitio que usa browser-mcp:",
+        connect_option_a: "Opcion A — MCP Browser (recomendado)",
+        connect_a_desc: "Descarga MCP Browser, abre cualquier sitio, y apunta tu agente al servidor HTTP:",
+        connect_option_b: "Opcion B — BroadcastChannel (mismo navegador)",
+        connect_b_desc: "Para agentes que corren en el mismo navegador, conecta via BroadcastChannel:",
+        // Prompts
+        prompts_title: "Prompts",
+        prompts_desc: "Los prompts son plantillas predefinidas que los agentes pueden descubrir y usar para estructurar sus interacciones con tu sitio. Defínelos una vez y cualquier agente conectado puede listarlos e invocarlos.",
+        prompts_note: 'Los agentes descubren prompts via <code>prompts/list</code> y los invocan con <code>prompts/get</code>. Los argumentos se pasan como pares clave-valor.',
+        // Resources
+        resources_title: "Recursos",
+        resources_desc: "Los recursos exponen datos de tu sitio via URIs que los agentes pueden leer. Pueden ser estaticos (URI fijo) o dinamicos (templates de URI con parametros).",
+        resources_note: 'Los agentes descubren recursos via <code>resources/list</code> y los leen con <code>resources/read</code>. Los URI templates (con <code>{param}</code>) aparecen en <code>resources/templates/list</code>.',
+        // Sampling
+        sampling_desc: "Sampling permite que tus tools soliciten completados de LLM a traves del agente conectado. El usuario ve un modal para aprobar o editar la respuesta (human-in-the-loop).",
+        sampling_flow_title: '<strong style="color:#e2e8f0;">Flujo:</strong>',
+        sampling_flow: "Agente llama tool → tool llama createSamplingMessage() → modal aparece en el navegador → usuario escribe/aprueba respuesta → resultado retorna al tool → tool retorna al agente",
+        sampling_note: 'Tambien puedes pasar un handler custom a <code>enableSampling(fn)</code> para saltar el modal y manejar el sampling programaticamente.',
         status_running: "Servidor MCP activo",
         status_tools: "tools registradas",
       }
