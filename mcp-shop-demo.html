@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+<head><title>MCP Shop Demo</title></head>
+<body>
+  <h1>Online Shop</h1>
+  <p>This page registers custom MCP tools. Open it in MCP Browser and agents can search products, check prices, and add to cart.</p>
+  <div id="status">Waiting for MCP Browser bridge...</div>
+
+  <script>
+    // mcpTool() is injected by MCP Browser's bridge script
+    // If running in a normal browser, it won't exist
+    function waitForMcp(cb) {
+      if (typeof mcpTool === 'function') return cb();
+      if (typeof window.mcpTool === 'function') return cb();
+      setTimeout(function() { waitForMcp(cb); }, 300);
+    }
+
+    var products = [
+      { id: 1, name: 'MacBook Pro M4', price: 1999, category: 'laptops', stock: 23 },
+      { id: 2, name: 'iPhone 17', price: 1099, category: 'phones', stock: 150 },
+      { id: 3, name: 'AirPods Pro 3', price: 249, category: 'audio', stock: 89 },
+      { id: 4, name: 'iPad Air', price: 599, category: 'tablets', stock: 45 },
+      { id: 5, name: 'Apple Watch Ultra', price: 799, category: 'wearables', stock: 30 },
+      { id: 6, name: 'Samsung Galaxy S26', price: 999, category: 'phones', stock: 67 },
+      { id: 7, name: 'Sony WH-1000XM6', price: 349, category: 'audio', stock: 120 },
+      { id: 8, name: 'Dell XPS 15', price: 1499, category: 'laptops', stock: 18 },
+    ];
+
+    var cart = [];
+
+    waitForMcp(function() {
+      document.getElementById('status').textContent = 'MCP tools registered!';
+      document.getElementById('status').style.color = 'green';
+
+      mcpTool('shop_search', 'Search products by name or category',
+        { query: { type: 'string', description: 'Search term' } },
+        function(args) {
+          var q = (args.query || '').toLowerCase();
+          var results = products.filter(function(p) {
+            return p.name.toLowerCase().includes(q) || p.category.includes(q);
+          });
+          return JSON.stringify(results);
+        }
+      );
+
+      mcpTool('shop_get_product', 'Get product details by ID',
+        { id: { type: 'number' } },
+        function(args) {
+          var p = products.find(function(x) { return x.id === args.id; });
+          return p ? JSON.stringify(p) : JSON.stringify({ error: 'Product not found' });
+        }
+      );
+
+      mcpTool('shop_categories', 'List all product categories', {},
+        function() {
+          var cats = {};
+          products.forEach(function(p) { cats[p.category] = (cats[p.category] || 0) + 1; });
+          return JSON.stringify(cats);
+        }
+      );
+
+      mcpTool('shop_add_to_cart', 'Add product to cart',
+        { product_id: { type: 'number' }, quantity: { type: 'number' } },
+        function(args) {
+          var p = products.find(function(x) { return x.id === args.product_id; });
+          if (!p) return JSON.stringify({ error: 'Product not found' });
+          var qty = args.quantity || 1;
+          cart.push({ product: p.name, price: p.price, quantity: qty });
+          var total = cart.reduce(function(s, i) { return s + i.price * i.quantity; }, 0);
+          return JSON.stringify({ added: p.name, quantity: qty, cart_items: cart.length, cart_total: '$' + total });
+        }
+      );
+
+      mcpTool('shop_view_cart', 'View shopping cart contents', {},
+        function() {
+          var total = cart.reduce(function(s, i) { return s + i.price * i.quantity; }, 0);
+          return JSON.stringify({ items: cart, total: '$' + total, count: cart.length });
+        }
+      );
+
+      mcpTool('shop_clear_cart', 'Clear the shopping cart', {},
+        function() {
+          cart = [];
+          return JSON.stringify({ message: 'Cart cleared', count: 0 });
+        }
+      );
+    });
+  </script>
+</body>
+</html>
