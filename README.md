@@ -2,7 +2,7 @@
 
 Turn any webpage into an MCP server. Zero dependencies. One script tag.
 
-**Demo:** [browser-mcp.pages.dev](https://browser-mcp.pages.dev) | **Tests:** [browser-mcp.pages.dev/test.html](https://browser-mcp.pages.dev/test.html) (76 tests) | **Shop Demo:** [mcp-shop-demo.html](https://browser-mcp.pages.dev/mcp-shop-demo.html)
+**Demo:** [browser-mcp.pages.dev](https://browser-mcp.pages.dev) | **Tests:** [browser-mcp.pages.dev/test.html](https://browser-mcp.pages.dev/test.html) (76 tests) | **Shop Demo:** [mcp-shop-demo.html](https://browser-mcp.pages.dev/mcp-shop-demo.html) | **MCP Browser:** [Download](https://github.com/MauricioPerera/mcp-browser/releases)
 
 ## What it does
 
