@@ -103,15 +103,28 @@
      * @param {object} [opts]
      * @param {boolean} [opts.requireAuth=false] — require auth for debug tools
      */
+    /**
+     * Register all debug tools.
+     * @param {BrowserMCP} [mcp] — BrowserMCP instance (optional if mcpTool() is available)
+     * @param {object} [opts]
+     */
     register(mcp, opts = {}) {
       if (_registered) { console.warn('[BrowserMCPDebug] Already registered'); return; }
       _registered = true;
       installListeners();
       const toolOpts = opts.requireAuth ? {} : { public: true };
 
+      // Unified registration: works with mcpTool() (MCP Browser) or mcp.tool() (standalone)
+      function regTool(name, desc, schema, handler, tOpts) {
+        if (typeof mcpTool === 'function') mcpTool(name, desc, schema, handler);
+        if (mcp && mcp.tool) mcp.tool(name, desc, schema, handler, tOpts);
+      }
+      // Replace mcp.tool references below
+      const _mcp = { tool: regTool };
+
       // ── 1. Health Check ──────────────────────────────────────────
 
-      mcp.tool('debug_health', 'Quick health check: uptime, memory, errors, page info', {},
+      _mcp.tool('debug_health', 'Quick health check: uptime, memory, errors, page info', {},
         () => JSON.stringify({
           url: location.href,
           title: document.title,
@@ -127,7 +140,7 @@
 
       // ── 2. JS Errors ─────────────────────────────────────────────
 
-      mcp.tool('debug_errors', 'Get captured JavaScript errors (window.onerror + unhandled rejections)', { limit: 'number' },
+      _mcp.tool('debug_errors', 'Get captured JavaScript errors (window.onerror + unhandled rejections)', { limit: 'number' },
         ({ limit }) => {
           const n = Math.min(limit || 20, capturedErrors.length);
           return JSON.stringify(capturedErrors.slice(-n), null, 2);
@@ -137,7 +150,7 @@
 
       // ── 3. Console Logs ──────────────────────────────────────────
 
-      mcp.tool('debug_console', 'Get captured console.error and console.warn messages', { level: 'string', limit: 'number' },
+      _mcp.tool('debug_console', 'Get captured console.error and console.warn messages', { level: 'string', limit: 'number' },
         ({ level, limit }) => {
           let logs = capturedLogs;
           if (level === 'error') logs = logs.filter(l => l.level === 'error');
@@ -150,7 +163,7 @@
 
       // ── 4. Network Log ───────────────────────────────────────────
 
-      mcp.tool('debug_network', 'Get recent fetch requests with status, duration, errors', { limit: 'number', failed_only: 'boolean' },
+      _mcp.tool('debug_network', 'Get recent fetch requests with status, duration, errors', { limit: 'number', failed_only: 'boolean' },
         ({ limit, failed_only }) => {
           let log = networkLog;
           if (failed_only) log = log.filter(n => n.error || (n.status && n.status >= 400));
@@ -162,7 +175,7 @@
 
       // ── 5. DOM Inspector ─────────────────────────────────────────
 
-      mcp.tool('debug_dom', 'Inspect a DOM element by CSS selector', { selector: 'string' },
+      _mcp.tool('debug_dom', 'Inspect a DOM element by CSS selector', { selector: 'string' },
         ({ selector }) => {
           const el = document.querySelector(selector);
           if (!el) return `Element not found: ${selector}`;
@@ -183,7 +196,7 @@
 
       // ── 6. Query DOM ─────────────────────────────────────────────
 
-      mcp.tool('debug_query', 'Count or list elements matching a CSS selector', { selector: 'string', limit: 'number' },
+      _mcp.tool('debug_query', 'Count or list elements matching a CSS selector', { selector: 'string', limit: 'number' },
         ({ selector, limit }) => {
           const els = document.querySelectorAll(selector);
           const n = Math.min(limit || 10, els.length);
@@ -201,7 +214,7 @@
 
       // ── 7. Performance ───────────────────────────────────────────
 
-      mcp.tool('debug_performance', 'Get page performance metrics (load time, LCP, CLS, memory)', {},
+      _mcp.tool('debug_performance', 'Get page performance metrics (load time, LCP, CLS, memory)', {},
         () => {
           const nav = performance.getEntriesByType('navigation')[0];
           const paint = performance.getEntriesByType('paint');
@@ -222,7 +235,7 @@
 
       // ── 8. Local/Session Storage ─────────────────────────────────
 
-      mcp.tool('debug_storage', 'Inspect localStorage and sessionStorage', { type: 'string' },
+      _mcp.tool('debug_storage', 'Inspect localStorage and sessionStorage', { type: 'string' },
         ({ type }) => {
           try {
             const storage = type === 'session' ? sessionStorage : localStorage;
@@ -247,7 +260,7 @@
 
       // ── 9. Cookies ───────────────────────────────────────────────
 
-      mcp.tool('debug_cookies', 'List all cookies for this domain', {},
+      _mcp.tool('debug_cookies', 'List all cookies for this domain', {},
         () => {
           const cookies = document.cookie.split(';').map(c => {
             const [name, ...rest] = c.trim().split('=');
@@ -260,7 +273,7 @@
 
       // ── 10. Execute JS ───────────────────────────────────────────
 
-      mcp.tool('debug_eval', 'Execute JavaScript in page context (use carefully)', { code: 'string' },
+      _mcp.tool('debug_eval', 'Execute JavaScript in page context (use carefully)', { code: 'string' },
         ({ code }) => {
           try {
             const result = Function('"use strict"; return (' + code + ')')();
@@ -274,7 +287,7 @@
 
       // ── 11. Screenshot (data URL) ────────────────────────────────
 
-      mcp.tool('debug_viewport', 'Get viewport and scroll info', {},
+      _mcp.tool('debug_viewport', 'Get viewport and scroll info', {},
         () => JSON.stringify({
           viewport: { width: window.innerWidth, height: window.innerHeight },
           scroll: { x: window.scrollX, y: window.scrollY },
@@ -287,7 +300,7 @@
 
       // ── 12. Clear Captures ───────────────────────────────────────
 
-      mcp.tool('debug_clear', 'Clear all captured errors, logs, and network entries', {},
+      _mcp.tool('debug_clear', 'Clear all captured errors, logs, and network entries', {},
         () => {
           capturedErrors.length = 0;
           capturedLogs.length = 0;
@@ -299,7 +312,7 @@
 
       // ── Resource: full debug snapshot ────────────────────────────
 
-      mcp.resource('debug://snapshot', 'Full debug snapshot (errors + logs + network + performance)', 'application/json',
+      if (mcp && mcp.resource) mcp.resource('debug://snapshot', 'Full debug snapshot (errors + logs + network + performance)', 'application/json',
         () => JSON.stringify({
           timestamp: new Date().toISOString(),
           url: location.href,

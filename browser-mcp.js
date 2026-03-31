@@ -567,8 +567,53 @@
     }
   }
 
+  // ─── Global mcpTool() API ─────────────────────────────────────────────────
+  // Compatible with MCP Browser bridge. Works in both runtimes:
+  // - In normal browser: registers on the active BrowserMCP instance
+  // - In MCP Browser: registers on window.__MCP_TOOLS__/__MCP_HANDLERS__
+
+  if (typeof global !== 'undefined' && !global.mcpTool) {
+    // Global tool/handler registry (shared with MCP Browser bridge)
+    if (!global.__MCP_TOOLS__) global.__MCP_TOOLS__ = [];
+    if (!global.__MCP_HANDLERS__) global.__MCP_HANDLERS__ = {};
+
+    /**
+     * Register an MCP tool globally. Works with both browser-mcp.js and MCP Browser.
+     * @param {string} name
+     * @param {string} description
+     * @param {object} schema - { fieldName: { type: "string" } }
+     * @param {function} handler - (args) => result
+     */
+    global.mcpTool = function(name, description, schema, handler) {
+      const inputSchema = { type: 'object', properties: schema || {} };
+      // Register in global registry (for MCP Browser bridge)
+      global.__MCP_TOOLS__.push({ name, description, inputSchema });
+      global.__MCP_HANDLERS__[name] = handler;
+      // Also register on active BrowserMCP instance if exists
+      if (global._browserMCP && global._browserMCP._toolHandlers && !global._browserMCP._toolHandlers.has(name)) {
+        global._browserMCP._tools.push({ name, description, inputSchema });
+        global._browserMCP._toolHandlers.set(name, handler);
+      }
+    };
+  }
+
+  // When BrowserMCP starts, sync any tools already registered via mcpTool()
+  const origStart = BrowserMCP.prototype.start;
+  BrowserMCP.prototype.start = async function() {
+    // Import globally registered tools into this instance
+    if (global.__MCP_TOOLS__) {
+      for (const t of global.__MCP_TOOLS__) {
+        if (!this._toolHandlers.has(t.name)) {
+          this._tools.push(t);
+          this._toolHandlers.set(t.name, global.__MCP_HANDLERS__[t.name]);
+        }
+      }
+    }
+    return origStart.call(this);
+  };
+
   if (typeof globalThis !== 'undefined') globalThis.BrowserMCP = BrowserMCP;
-  if (typeof module !== 'undefined' && module.exports) module.exports = { BrowserMCP };
+  if (typeof module !== 'undefined' && module.exports) module.exports = { BrowserMCP, mcpTool: global.mcpTool };
   if (typeof window !== 'undefined') window.BrowserMCP = BrowserMCP;
 
 })(typeof globalThis !== 'undefined' ? globalThis : typeof window !== 'undefined' ? window : this);

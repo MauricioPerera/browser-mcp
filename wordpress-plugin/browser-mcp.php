@@ -66,21 +66,43 @@ class BrowserMCP_Plugin {
         ?>
         <script>
         (function() {
-            if (typeof BrowserMCP === 'undefined') return;
-
             const cfg = window.bmcpConfig || {};
             const rest = cfg.restUrl;
             const nonce = cfg.nonce;
 
-            const mcp = new BrowserMCP({
-                name: cfg.siteTitle + ' (WordPress)',
-                version: '0.1.0',
-                description: 'WordPress MCP Server — manage posts, pages, media, and settings via AI agents',
-            });
+            // Works in both runtimes:
+            // - Normal browser: BrowserMCP class handles everything
+            // - MCP Browser: mcpTool() is injected by the bridge
+            function waitForMcpApi(cb) {
+                if (typeof mcpTool === 'function') return cb('bridge');
+                if (typeof BrowserMCP !== 'undefined') return cb('standalone');
+                setTimeout(function() { waitForMcpApi(cb); }, 200);
+            }
 
-            // Auth: verify WordPress nonce (admin) or application password (external)
+            waitForMcpApi(function(mode) {
+            // In standalone mode, create BrowserMCP instance
+            var mcp = null;
+            if (mode === 'standalone') {
+                mcp = new BrowserMCP({
+                    name: cfg.siteTitle + ' (WordPress)',
+                    version: '0.1.0',
+                    description: 'WordPress MCP Server',
+                });
+            }
+
+            // Unified tool registration: works with both mcpTool() and BrowserMCP
+            function registerTool(name, desc, schema, handler, opts) {
+                if (typeof mcpTool === 'function') {
+                    mcpTool(name, desc, schema, handler);
+                }
+                if (mcp) {
+                    registerTool(name, desc, schema, handler, opts);
+                }
+            }
+
+            // Auth: only in standalone mode (MCP Browser has its own auth)
             let _authHeaders = {};
-            mcp.requireAuth(async (token) => {
+            if (mcp) mcp.requireAuth(async (token) => {
                 try {
                     const headers = {};
                     if (token === 'wp-nonce') {
@@ -114,7 +136,7 @@ class BrowserMCP_Plugin {
 
             // ── Public tools ──────────────────────────────────────────
 
-            mcp.tool('wp_site_info', 'Get WordPress site information', {},
+            registerTool('wp_site_info', 'Get WordPress site information', {},
                 () => JSON.stringify({
                     title: cfg.siteTitle,
                     url: window.location.origin,
@@ -124,7 +146,7 @@ class BrowserMCP_Plugin {
                 { public: true }
             );
 
-            mcp.tool('wp_search', 'Search posts and pages', { query: 'string', limit: 'number' },
+            registerTool('wp_search', 'Search posts and pages', { query: 'string', limit: 'number' },
                 async ({ query, limit }) => {
                     const res = await fetch(rest + 'wp/v2/search?search=' + encodeURIComponent(query) + '&per_page=' + Math.min(Math.max(parseInt(limit) || 10, 1), 100));
                     return await res.text();
@@ -134,7 +156,7 @@ class BrowserMCP_Plugin {
 
             // ── Authenticated tools ───────────────────────────────────
 
-            mcp.tool('wp_list_posts', 'List recent posts', { status: 'string', limit: 'number' },
+            registerTool('wp_list_posts', 'List recent posts', { status: 'string', limit: 'number' },
                 async ({ status, limit }, user) => {
                     const s = status || 'publish';
                     const res = await fetch(rest + 'wp/v2/posts?status=' + s + '&per_page=' + clampLimit(limit, 10), {
@@ -148,7 +170,7 @@ class BrowserMCP_Plugin {
                 }
             );
 
-            mcp.tool('wp_get_post', 'Get a single post by ID', { id: 'number' },
+            registerTool('wp_get_post', 'Get a single post by ID', { id: 'number' },
                 async ({ id }, user) => {
                     const res = await fetch(rest + 'wp/v2/posts/' + id, {
                         headers: wpHeaders()
@@ -162,7 +184,7 @@ class BrowserMCP_Plugin {
                 }
             );
 
-            mcp.tool('wp_create_post', 'Create a new post', {
+            registerTool('wp_create_post', 'Create a new post', {
                 title: 'string', content: 'string', status: 'string'
             },
                 async ({ title, content, status }, user) => {
@@ -178,7 +200,7 @@ class BrowserMCP_Plugin {
                 { roles: ['administrator', 'editor', 'author'] }
             );
 
-            mcp.tool('wp_update_post', 'Update an existing post', {
+            registerTool('wp_update_post', 'Update an existing post', {
                 id: 'number', title: 'string', content: 'string', status: 'string'
             },
                 async ({ id, title, content, status }, user) => {
@@ -197,7 +219,7 @@ class BrowserMCP_Plugin {
                 { roles: ['administrator', 'editor'] }
             );
 
-            mcp.tool('wp_delete_post', 'Delete a post (move to trash)', { id: 'number' },
+            registerTool('wp_delete_post', 'Delete a post (move to trash)', { id: 'number' },
                 async ({ id }, user) => {
                     const res = await fetch(rest + 'wp/v2/posts/' + id, {
                         method: 'DELETE',
@@ -208,7 +230,7 @@ class BrowserMCP_Plugin {
                 { roles: ['administrator', 'editor'] }
             );
 
-            mcp.tool('wp_list_pages', 'List all pages', { limit: 'number' },
+            registerTool('wp_list_pages', 'List all pages', { limit: 'number' },
                 async ({ limit }, user) => {
                     const res = await fetch(rest + 'wp/v2/pages?per_page=' + clampLimit(limit, 20), {
                         headers: wpHeaders()
@@ -220,7 +242,7 @@ class BrowserMCP_Plugin {
                 }
             );
 
-            mcp.tool('wp_list_categories', 'List all categories', {},
+            registerTool('wp_list_categories', 'List all categories', {},
                 async (_, user) => {
                     const res = await fetch(rest + 'wp/v2/categories?per_page=100', {
                         headers: wpHeaders()
@@ -230,7 +252,7 @@ class BrowserMCP_Plugin {
                 }
             );
 
-            mcp.tool('wp_list_users', 'List WordPress users', { limit: 'number' },
+            registerTool('wp_list_users', 'List WordPress users', { limit: 'number' },
                 async ({ limit }, user) => {
                     const res = await fetch(rest + 'wp/v2/users?per_page=' + clampLimit(limit, 20), {
                         headers: wpHeaders()
@@ -243,7 +265,7 @@ class BrowserMCP_Plugin {
                 { roles: ['administrator'] }
             );
 
-            mcp.tool('wp_get_settings', 'Get WordPress site settings', {},
+            registerTool('wp_get_settings', 'Get WordPress site settings', {},
                 async (_, user) => {
                     const res = await fetch(rest + 'wp/v2/settings', {
                         headers: wpHeaders()
@@ -254,7 +276,7 @@ class BrowserMCP_Plugin {
                 { roles: ['administrator'] }
             );
 
-            mcp.tool('wp_list_plugins', 'List installed plugins', {},
+            registerTool('wp_list_plugins', 'List installed plugins', {},
                 async (_, user) => {
                     const res = await fetch(rest + 'wp/v2/plugins', {
                         headers: wpHeaders()
@@ -285,9 +307,16 @@ class BrowserMCP_Plugin {
 
             // ── Start ─────────────────────────────────────────────────
 
-            mcp.start().then(() => {
-                console.log('[Browser MCP] WordPress MCP server started with ' + mcp.listTools().length + ' tools');
-            });
+            // Start (only in standalone mode)
+            if (mcp) {
+                mcp.start().then(function() {
+                    console.log('[Browser MCP] WordPress MCP server started with ' + mcp.listTools().length + ' tools');
+                });
+            } else {
+                console.log('[Browser MCP] WordPress tools registered via mcpTool() for MCP Browser');
+            }
+
+            }); // end waitForMcpApi
         })();
         </script>
         <?php
